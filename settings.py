@@ -1,0 +1,35 @@
+# Game Settings and Constants
+
+# Screen dimensions
+SCREEN_WIDTH = 1024
+SCREEN_HEIGHT = 768
+FPS = 60
+
+# Colors (RGB)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+CYAN = (0, 255, 255)
+MAGENTA = (255, 0, 255)
+GRAY = (128, 128, 128)
+DARK_GRAY = (64, 64, 64)
+LIGHT_GRAY = (192, 192, 192)
+
+# Player settings
+PLAYER_WIDTH = 32
+PLAYER_HEIGHT = 48
+PLAYER_COLOR = BLUE
+PLAYER_SPEED = 5
+PLAYER_JUMP_SPEED = -15
+PLAYER_GRAVITY = 0.8
+PLAYER_MAX_FALL_SPEED = 15
+
+# Platform settings
+PLATFORM_COLOR = GREEN
+GROUND_HEIGHT = 100
+
+# Game physics
+FRICTION = 0.1 
