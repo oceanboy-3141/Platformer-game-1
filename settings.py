@@ -5,6 +5,15 @@ SCREEN_WIDTH = 1024
 SCREEN_HEIGHT = 768
 FPS = 60
 
+# World dimensions (8 times larger than screen)
+WORLD_WIDTH = SCREEN_WIDTH * 8  # 8192 pixels
+WORLD_HEIGHT = SCREEN_HEIGHT * 8  # 6144 pixels
+
+# Camera settings
+CAMERA_SMOOTHING = 0.3  # More responsive camera (was 0.1)
+CAMERA_MARGIN_X = SCREEN_WIDTH // 4  # Dead zone for horizontal camera movement
+CAMERA_MARGIN_Y = SCREEN_HEIGHT // 4  # Dead zone for vertical camera movement
+
 # Colors (RGB)
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
@@ -29,9 +38,9 @@ METAL_SILVER = (192, 192, 192)
 # Player settings
 PLAYER_WIDTH = 32
 PLAYER_HEIGHT = 48
-PLAYER_SPEED = 5
-PLAYER_JUMP_SPEED = -15
-PLAYER_GRAVITY = 0.8
+PLAYER_SPEED = 6
+PLAYER_JUMP_SPEED = -18
+PLAYER_GRAVITY = 0.7
 PLAYER_MAX_FALL_SPEED = 15
 
 # Platform settings (fallback colors)

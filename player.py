@@ -40,6 +40,13 @@ class Player(pygame.sprite.Sprite):
         self.animation_timer = 0
         self.is_moving = False
         self.facing_right = True
+        
+        # Power-up system
+        self.active_powerups = {}  # {effect_type: time_remaining}
+        
+        # Moving platform interaction
+        self.on_moving_platform = None
+        self.platform_velocity_x = 0
     
     def load_base_sprite(self):
         """Load and prepare the base humanoid sprite"""
@@ -195,7 +202,7 @@ class Player(pygame.sprite.Sprite):
                     pygame.draw.line(pattern_overlay, (*theme['player_accent'], alpha), 
                                    (0, y), (width, y))
             
-            # Blend the pattern overlay very subtly
+            # Blend the pattern overlay very subtly - remove problematic blend mode
             patterned_sprite.blit(pattern_overlay, (0, 0))
             
             return patterned_sprite
@@ -314,27 +321,36 @@ class Player(pygame.sprite.Sprite):
             self.jump()
     
     def jump(self):
-        """Handle jumping logic including double jump"""
+        """Handle jumping logic including double jump and power-ups"""
         if self.on_ground or self.jump_count < self.max_jumps:
-            self.vel_y = PLAYER_JUMP_SPEED
+            # Calculate jump strength (enhanced by power-ups)
+            jump_strength = PLAYER_JUMP_SPEED
+            if self.has_powerup("jump_boost"):
+                jump_strength *= 1.5  # 50% higher jumps
+            
+            self.vel_y = jump_strength
             self.on_ground = False
             if not self.on_ground:
                 self.jump_count += 1
             
-            # Add jump particles
+            # Add jump particles (enhanced for power-ups)
             self.add_jump_particles()
     
     def add_jump_particles(self):
         """Add particle effects when jumping"""
-        for i in range(5):
+        # Enhanced particles for jump boost
+        particle_count = 8 if self.has_powerup("jump_boost") else 5
+        particle_color = (100, 255, 100) if self.has_powerup("jump_boost") else self.theme['particle_color']
+        
+        for i in range(particle_count):
             particle = {
-                'x': self.rect.centerx + (i - 2) * 5,
+                'x': self.rect.centerx + (i - particle_count//2) * 5,
                 'y': self.rect.bottom,
-                'vel_x': (i - 2) * 20,
+                'vel_x': (i - particle_count//2) * 20,
                 'vel_y': -30 - i * 10,
                 'life': 0.5 + i * 0.1,
                 'max_life': 0.5 + i * 0.1,
-                'color': self.theme['particle_color']
+                'color': particle_color
             }
             self.particles.append(particle)
     
@@ -391,6 +407,9 @@ class Player(pygame.sprite.Sprite):
         """Update player position and handle physics"""
         dt = 1/60  # Assuming 60 FPS for particle effects
         
+        # Update power-ups
+        self.update_powerups(dt)
+        
         # Store previous on_ground state for landing detection
         was_on_ground = self.on_ground
         
@@ -410,18 +429,24 @@ class Player(pygame.sprite.Sprite):
         # Update vertical position
         self.rect.y += self.vel_y
         
-        # Check vertical collisions with platforms
+        # Check vertical collisions with platforms (including moving platforms)
         self.check_vertical_collisions(platforms)
+        
+        # Handle moving platform interaction
+        if self.on_moving_platform:
+            # Move with the platform
+            platform_delta = self.on_moving_platform.get_movement_delta()
+            self.rect.x += platform_delta
         
         # Add landing particles if just landed
         if not was_on_ground and self.on_ground:
             self.add_landing_particles()
         
-        # Keep player on screen horizontally
+        # Keep player within world bounds (not just screen bounds!)
         if self.rect.left < 0:
             self.rect.left = 0
-        elif self.rect.right > SCREEN_WIDTH:
-            self.rect.right = SCREEN_WIDTH
+        elif self.rect.right > WORLD_WIDTH:
+            self.rect.right = WORLD_WIDTH
         
         # Update visual effects
         self.update_particles(dt)
@@ -475,3 +500,22 @@ class Player(pygame.sprite.Sprite):
         
         # Draw the player
         screen.blit(self.image, self.rect)
+    
+    def add_powerup(self, powerup_type, duration):
+        """Add a power-up effect"""
+        self.active_powerups[powerup_type] = duration
+    
+    def has_powerup(self, powerup_type):
+        """Check if player has an active power-up"""
+        return powerup_type in self.active_powerups
+    
+    def update_powerups(self, dt):
+        """Update power-up timers"""
+        expired = []
+        for powerup_type, time_left in self.active_powerups.items():
+            self.active_powerups[powerup_type] = time_left - dt
+            if self.active_powerups[powerup_type] <= 0:
+                expired.append(powerup_type)
+        
+        for powerup_type in expired:
+            del self.active_powerups[powerup_type]
