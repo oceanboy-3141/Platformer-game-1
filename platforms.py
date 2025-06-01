@@ -338,13 +338,16 @@ class BouncyPlatform(Platform):
     
     def add_movement_indicator(self):
         """Add visual indicator for bouncy platform"""
-        border_color = (255, 150, 0)  # Orange
-        pygame.draw.rect(self.image, border_color, self.image.get_rect(), 3)
+        border_color = (255, 100, 0)  # Bright orange
+        pygame.draw.rect(self.image, border_color, self.image.get_rect(), 5)  # Thicker border
         
-        # Add spring coils visual
-        for i in range(0, self.rect.width, 20):
+        # Add spring coils visual - more prominent
+        for i in range(0, self.rect.width, 15):  # More coils
             # Draw spring coil pattern
-            pygame.draw.circle(self.image, border_color, (i + 10, self.rect.height // 2), 4, 2)
+            pygame.draw.circle(self.image, border_color, (i + 7, self.rect.height // 2), 5, 3)
+            # Add bouncy dots
+            pygame.draw.circle(self.image, border_color, (i + 7, 5), 2)
+            pygame.draw.circle(self.image, border_color, (i + 7, self.rect.height - 5), 2)
     
     def update(self, dt):
         """Update bounce animation"""
@@ -394,3 +397,91 @@ class IcePlatform(Platform):
         ice_overlay = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
         ice_overlay.fill((*ice_color, 30))  # Semi-transparent ice
         self.image.blit(ice_overlay, (0, 0))
+
+class TeleporterElevator(Platform):
+    """Tutorial-friendly elevator that teleports player along with platform"""
+    def __init__(self, x, start_y, width, height, end_y, speed=40, wait_time=2.0, theme=None):
+        super().__init__(x, start_y, width, height, theme)
+        
+        # Movement properties
+        self.start_y = start_y
+        self.end_y = end_y
+        self.speed = speed  # pixels per second
+        self.direction = 1 if end_y > start_y else -1  # 1 for down, -1 for up
+        self.wait_time = wait_time  # Time to wait at each end
+        self.current_wait = 0.0
+        self.is_waiting = False
+        self.last_y = self.rect.y
+        
+        # Player riding system
+        self.rider = None  # Will store reference to player on platform
+        
+        # Add visual indicator (bright green border for teleporter)
+        self.add_movement_indicator()
+    
+    def add_movement_indicator(self):
+        """Add a bright green visual indicator to show this is a teleporter elevator"""
+        border_color = (50, 255, 50)  # Bright green
+        pygame.draw.rect(self.image, border_color, self.image.get_rect(), 4)
+        
+        # Add teleporter symbols (up/down arrows with dots)
+        center_x = self.rect.width // 2
+        # Up arrow with dots
+        pygame.draw.polygon(self.image, border_color, [
+            (center_x, 3), (center_x - 5, 10), (center_x + 5, 10)
+        ])
+        # Teleporter dots
+        for i in range(3):
+            pygame.draw.circle(self.image, border_color, (center_x - 6 + i * 6, 15), 2)
+        
+        # Down arrow with dots
+        pygame.draw.polygon(self.image, border_color, [
+            (center_x, self.rect.height - 3), (center_x - 5, self.rect.height - 10), (center_x + 5, self.rect.height - 10)
+        ])
+        # More teleporter dots
+        for i in range(3):
+            pygame.draw.circle(self.image, border_color, (center_x - 6 + i * 6, self.rect.height - 18), 2)
+    
+    def update(self, dt):
+        """Update teleporter elevator movement"""
+        self.last_y = self.rect.y
+        
+        if self.is_waiting:
+            self.current_wait += dt
+            if self.current_wait >= self.wait_time:
+                self.is_waiting = False
+                self.current_wait = 0.0
+                self.direction *= -1  # Reverse direction
+        else:
+            # Move platform
+            old_y = self.rect.y
+            self.rect.y += self.direction * self.speed * dt
+            movement_delta = self.rect.y - old_y
+            
+            # Move any rider along with the platform (TELEPORTER STYLE!)
+            if self.rider:
+                self.rider.rect.y += movement_delta
+            
+            # Check bounds and start waiting
+            if self.direction > 0 and self.rect.y >= self.end_y:  # Moving down, hit bottom
+                self.rect.y = self.end_y
+                if self.rider:
+                    self.rider.rect.y += (self.end_y - old_y - movement_delta)  # Adjust rider position
+                self.is_waiting = True
+            elif self.direction < 0 and self.rect.y <= self.start_y:  # Moving up, hit top
+                self.rect.y = self.start_y
+                if self.rider:
+                    self.rider.rect.y += (self.start_y - old_y - movement_delta)  # Adjust rider position
+                self.is_waiting = True
+    
+    def set_rider(self, player):
+        """Set the player as riding this elevator"""
+        self.rider = player
+    
+    def remove_rider(self):
+        """Remove the player from riding this elevator"""
+        self.rider = None
+    
+    def get_movement_delta_y(self):
+        """Get how much the platform moved vertically this frame"""
+        return self.rect.y - self.last_y

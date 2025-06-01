@@ -12,13 +12,14 @@ class CharacterSelectScreen:
         self.selected_theme = "crystal"
         self.selected_pattern = "solid"
         self.selected_accessory = "none"
+        self.start_tutorial = False  # Whether to start with tutorial
         
         self.theme_keys = list(THEMES.keys())
         self.pattern_keys = list(CHARACTER_PATTERNS.keys())
         self.accessory_keys = list(CHARACTER_ACCESSORIES.keys())
         
-        self.current_selection = 0  # 0=theme, 1=pattern, 2=accessory
-        self.selection_indices = [0, 0, 0]  # Current index for each category
+        self.current_selection = 0  # 0=theme, 1=pattern, 2=accessory, 3=tutorial
+        self.selection_indices = [0, 0, 0, 0]  # Current index for each category
         
         # Animation variables
         self.glow_timer = 0
@@ -166,10 +167,10 @@ class CharacterSelectScreen:
             return keys_just_pressed.get(key, False)
         
         if is_key_just_pressed(pygame.K_UP) or is_key_just_pressed(pygame.K_w):
-            self.current_selection = (self.current_selection - 1) % 3
+            self.current_selection = (self.current_selection - 1) % 4
             
         elif is_key_just_pressed(pygame.K_DOWN) or is_key_just_pressed(pygame.K_s):
-            self.current_selection = (self.current_selection + 1) % 3
+            self.current_selection = (self.current_selection + 1) % 4
             
         elif is_key_just_pressed(pygame.K_LEFT) or is_key_just_pressed(pygame.K_a):
             if self.current_selection == 0:  # Theme
@@ -181,6 +182,9 @@ class CharacterSelectScreen:
             elif self.current_selection == 2:  # Accessory
                 self.selection_indices[2] = (self.selection_indices[2] - 1) % len(self.accessory_keys)
                 self.selected_accessory = self.accessory_keys[self.selection_indices[2]]
+            elif self.current_selection == 3:  # Tutorial
+                self.selection_indices[3] = (self.selection_indices[3] - 1) % 2
+                self.start_tutorial = bool(self.selection_indices[3])
                 
         elif is_key_just_pressed(pygame.K_RIGHT) or is_key_just_pressed(pygame.K_d):
             if self.current_selection == 0:  # Theme
@@ -192,6 +196,9 @@ class CharacterSelectScreen:
             elif self.current_selection == 2:  # Accessory
                 self.selection_indices[2] = (self.selection_indices[2] + 1) % len(self.accessory_keys)
                 self.selected_accessory = self.accessory_keys[self.selection_indices[2]]
+            elif self.current_selection == 3:  # Tutorial
+                self.selection_indices[3] = (self.selection_indices[3] + 1) % 2
+                self.start_tutorial = bool(self.selection_indices[3])
                 
         return is_key_just_pressed(pygame.K_RETURN) or is_key_just_pressed(pygame.K_SPACE)
     
@@ -295,7 +302,8 @@ class CharacterSelectScreen:
         categories = [
             ("Theme", self.selected_theme, THEMES[self.selected_theme]['name']),
             ("Pattern", self.selected_pattern, CHARACTER_PATTERNS[self.selected_pattern]),
-            ("Accessory", self.selected_accessory, CHARACTER_ACCESSORIES[self.selected_accessory])
+            ("Accessory", self.selected_accessory, CHARACTER_ACCESSORIES[self.selected_accessory]),
+            ("Tutorial", self.start_tutorial, "Yes" if self.start_tutorial else "No")
         ]
         
         y_start = SCREEN_HEIGHT - 250
@@ -331,6 +339,7 @@ class CharacterSelectScreen:
         instructions = [
             "↑↓ / WS: Select Category",
             "←→ / AD: Change Selection", 
+            "Tutorial: Learn all mechanics step-by-step",
             "ENTER / SPACE: Start Game"
         ]
         
@@ -344,7 +353,8 @@ class CharacterSelectScreen:
         return {
             'theme': self.selected_theme,
             'pattern': self.selected_pattern,
-            'accessory': self.selected_accessory
+            'accessory': self.selected_accessory,
+            'start_tutorial': self.start_tutorial
         }
     
     def load_background_previews(self):

@@ -116,6 +116,7 @@ CHARACTER_ACCESSORIES = {
 # Game states
 GAME_STATE_MENU = "menu"
 GAME_STATE_CHARACTER_SELECT = "character_select"
+GAME_STATE_TUTORIAL = "tutorial"
 GAME_STATE_PLAYING = "playing"
 GAME_STATE_PAUSED = "paused"
 GAME_STATE_GAME_OVER = "game_over"

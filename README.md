@@ -1,6 +1,6 @@
-# Pygame Platformer - Basic Movement
+# Pygame Platformer - Phase 3.5: Tutorial System & Decluttered Gameplay
 
-A simple 2D platformer game built with Pygame featuring basic player movement and jumping mechanics.
+A comprehensive 2D platformer game built with Pygame featuring dynamic platforms, character customization, and an optional tutorial system.
 
 ## Setup Instructions
 
@@ -25,38 +25,52 @@ python main.py
 - **Jumping**: Spacebar, Up Arrow, or W
   - Single tap: Regular jump
   - Double tap while in air: Double jump
+- **Menu Navigation**: Arrow Keys or WASD, ENTER/SPACE to confirm
 - **Quit**: ESC key or close the window
+
+## 🎯 **Phase 3.5 Features - NEW!**
+
+### ✅ **Tutorial System**
+- **Optional Tutorial**: Choose "Yes" during character selection
+- **Step-by-Step Learning**: Each mechanic introduced gradually
+- **Skip Anytime**: Press ESC to skip tutorial and jump to main game
+- **Progressive Checkpoints**: 10 sections covering all game mechanics
+
+### ✅ **Decluttered Main Game**
+- **Reduced Platform Density**: ~60% fewer special platforms
+- **Strategic Placement**: Each platform type appears 2-6 times max
+- **Better Spacing**: More breathing room between challenges
+- **Cleaner Experience**: Less overwhelming, more focused gameplay
 
 ## Features Implemented
 
-### ✅ Basic Player Movement
-- Smooth left and right movement
-- Friction when not pressing movement keys
-- Horizontal collision detection with platforms
+### ✅ **Phase 1: Core Gameplay Foundation**
+- **Large Game World**: 8x screen size with camera system
+- **Smooth Player Movement**: Physics-based with friction
+- **Double Jump Mechanics**: Variable jump height
+- **Death/Victory System**: Fall to bottom = death, reach top-right = victory
 
-### ✅ Jumping Mechanics
-- Variable jump height based on key press duration
-- Double jump capability
-- Gravity simulation with realistic physics
-- Maximum fall speed limit
+### ✅ **Phase 2: Character Customization**
+- **4 Unique Themes**: Crystal, Forest, Metal, Stone
+- **Character Patterns**: Solid, Stripes, Dots, Gradient
+- **Accessories**: Cape, Hat, Belt, or None
+- **Themed Backgrounds**: Each theme has unique visual style
 
-### ✅ Platform System
-- Ground platform spanning the screen width
-- Multiple floating platforms at different heights
-- Solid collision detection (can't pass through platforms)
+### ✅ **Phase 3: Dynamic Platform Mechanics**
+- **Moving Platforms**: Horizontal sliding with blue borders
+- **Vertical Elevators**: Green platforms that wait at endpoints
+- **Rotating Platforms**: Purple circular platforms with rotation indicators
+- **Disappearing Platforms**: Flash red and fade away when stepped on
+- **One-Way Platforms**: Yellow, can jump through from below
+- **Bouncy Platforms**: Orange, provide extra jump height
+- **Ice Platforms**: Light blue, slippery with reduced friction
+- **Jump Boost Power-ups**: Green crystals, 10-second effect
 
-### ✅ Physics System
-- Gravity affecting the player
-- Velocity-based movement
-- Collision detection and response
-- Screen boundary detection
-
-### ✅ Debug Information
-Real-time display of:
-- Player position coordinates
-- Player velocity (X and Y components)
-- Ground contact status
-- Jump counter
+### ✅ **Phase 3.5: Tutorial & Polish**
+- **Optional Tutorial System**: Learn each mechanic step-by-step
+- **Decluttered Design**: Reduced platform density for better experience
+- **Progressive Learning**: 10 tutorial sections with clear explanations
+- **Modular Code Structure**: Separate tutorial.py and enemies.py modules
 
 ## Game Architecture
 

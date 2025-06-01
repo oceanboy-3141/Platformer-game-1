@@ -434,9 +434,23 @@ class Player(pygame.sprite.Sprite):
         
         # Handle moving platform interaction
         if self.on_moving_platform:
-            # Move with the platform
-            platform_delta = self.on_moving_platform.get_movement_delta()
-            self.rect.x += platform_delta
+            # Move with the platform (horizontal)
+            if hasattr(self.on_moving_platform, 'get_movement_delta'):
+                platform_delta = self.on_moving_platform.get_movement_delta()
+                self.rect.x += platform_delta
+            
+            # Move with the platform (vertical)
+            if hasattr(self.on_moving_platform, 'get_movement_delta_y'):
+                platform_delta_y = self.on_moving_platform.get_movement_delta_y()
+                self.rect.y += platform_delta_y
+        
+        # Apply ice friction if on ice platform, otherwise normal friction
+        if not self.apply_ice_friction(platforms):
+            # Apply normal friction when not moving
+            if not (self.moving_left or self.moving_right):
+                self.vel_x *= (1 - FRICTION)
+                if abs(self.vel_x) < 0.1:
+                    self.vel_x = 0
         
         # Add landing particles if just landed
         if not was_on_ground and self.on_ground:
@@ -500,6 +514,11 @@ class Player(pygame.sprite.Sprite):
                     # Check if this is a moving platform
                     if hasattr(platform, 'get_movement_delta'):
                         self.on_moving_platform = platform
+                    
+                    # Check if this is a teleporter elevator
+                    if hasattr(platform, 'set_rider'):
+                        platform.set_rider(self)  # Register as rider for teleporter
+                        self.on_moving_platform = platform  # Also treat as moving platform
                     
                     # Activate disappearing platforms
                     if hasattr(platform, 'activate'):

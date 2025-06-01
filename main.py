@@ -7,6 +7,7 @@ from platforms import (Platform, Ground, MovingPlatform, DisappearingPlatform,
                       BouncyPlatform, IcePlatform)
 from powerups import PowerUp
 from character_select import CharacterSelectScreen
+from tutorial import TutorialLevel
 
 class Camera:
     def __init__(self):
@@ -58,6 +59,9 @@ class Game:
         
         # Initialize character selection screen
         self.character_select = CharacterSelectScreen(self.screen)
+        
+        # Tutorial system
+        self.tutorial_level = None
         
         # Track key states for proper input handling
         self.keys_pressed = pygame.key.get_pressed()
@@ -212,39 +216,19 @@ class Game:
         # Create victory zone at top-right (bigger and more forgiving)
         self.victory_zone = pygame.Rect(6350, WORLD_HEIGHT - 3400, 400, 150)
         
-        # Add PHASE 3: Moving Platforms (Horizontal) - MANY MORE!
+        # Add PHASE 3: Moving Platforms (Horizontal) - REDUCED for less clutter
         moving_platforms_data = [
-            # VERY early test platform - should be visible right away
-            (300, WORLD_HEIGHT - 300, 100, 25, 450, 200),   # Super fast for testing
+            # Early game - just a few to introduce the concept
+            (800, WORLD_HEIGHT - 350, 120, 25, 1000, 80),   # First one to see
+            (1600, WORLD_HEIGHT - 650, 80, 25, 1850, 60),   # Second example
             
-            # Another early platform that goes across the starting area
-            (100, WORLD_HEIGHT - 250, 80, 25, 350, 300),    # Even faster for testing
+            # Mid-section - spaced out nicely
+            (2800, WORLD_HEIGHT - 1100, 120, 25, 3100, 45),
+            (4000, WORLD_HEIGHT - 1800, 80, 25, 4250, 70),
             
-            # Start area moving platform
-            (800, WORLD_HEIGHT - 350, 120, 25, 1000, 250),  # Fast for testing
-            
-            # Early game - lots of moving platforms
-            (600, WORLD_HEIGHT - 450, 90, 25, 800, 80),     # Medium speed
-            (1200, WORLD_HEIGHT - 550, 100, 25, 1450, 60),  # Slower
-            (1600, WORLD_HEIGHT - 650, 80, 25, 1850, 120),  # Fast
-            
-            # Mid-section moving bridges
-            (1700, WORLD_HEIGHT - 800, 100, 25, 1900, 30),
-            (2000, WORLD_HEIGHT - 900, 110, 25, 2300, 90),  # New one
-            (2800, WORLD_HEIGHT - 1100, 120, 25, 3100, 35),
-            (3200, WORLD_HEIGHT - 1250, 90, 25, 3500, 70),  # New one
-            (3500, WORLD_HEIGHT - 1700, 100, 25, 3800, 25),
-            
-            # Upper area challenging moving platforms
-            (4000, WORLD_HEIGHT - 1800, 80, 25, 4250, 100), # New fast one
-            (4500, WORLD_HEIGHT - 2000, 100, 25, 4800, 60), # New medium
-            (4800, WORLD_HEIGHT - 2200, 90, 25, 5100, 50),  # Faster one
-            (5200, WORLD_HEIGHT - 2400, 85, 25, 5500, 80),  # New one
-            (5500, WORLD_HEIGHT - 2800, 110, 25, 5900, 30),
-            (5800, WORLD_HEIGHT - 3000, 95, 25, 6200, 90),  # New near end
-            
-            # Final area - tricky moving platforms
-            (6300, WORLD_HEIGHT - 3200, 100, 25, 6600, 70), # Before victory
+            # Upper area - final challenging ones
+            (5200, WORLD_HEIGHT - 2400, 85, 25, 5500, 50),
+            (6000, WORLD_HEIGHT - 3000, 95, 25, 6300, 60),  # Near end
         ]
         
         for start_x, y, width, height, end_x, speed in moving_platforms_data:
@@ -252,22 +236,11 @@ class Game:
             self.platforms.add(moving_platform)
             self.all_sprites.add(moving_platform)
         
-        # Add PHASE 3: Disappearing Platforms (creates timing challenges)
+        # Add PHASE 3: Disappearing Platforms - REDUCED for less clutter
         disappearing_platforms_data = [
-            # VERY early test platform - right after the moving platforms
-            (550, WORLD_HEIGHT - 300, 80, 25, 4.0),   # Close to start area for testing
-            
-            # Early game - safe disappearing platforms (longer times)
-            (1400, WORLD_HEIGHT - 600, 100, 25, 4.0),  # x, y, width, height, disappear_time
-            (1800, WORLD_HEIGHT - 1000, 90, 25, 3.5),
-            
-            # Mid game - moderate challenge
-            (2500, WORLD_HEIGHT - 1400, 80, 25, 3.0),
-            (3200, WORLD_HEIGHT - 1900, 100, 25, 3.5),
-            
-            # Late game - quick disappearing (advanced players only)
-            (4200, WORLD_HEIGHT - 2100, 70, 25, 2.5),
-            (5800, WORLD_HEIGHT - 2900, 80, 25, 2.0),
+            # Just 2 key disappearing platforms for the mechanic
+            (1800, WORLD_HEIGHT - 1000, 90, 25, 4.0),  # Early introduction
+            (4200, WORLD_HEIGHT - 2100, 80, 25, 3.0),  # Late game challenge
         ]
         
         for x, y, width, height, disappear_time in disappearing_platforms_data:
@@ -275,18 +248,11 @@ class Game:
             self.platforms.add(disappearing_platform)
             self.all_sprites.add(disappearing_platform)
         
-        # Add PHASE 3: Jump Boost Power-ups (strategic placement)
+        # Add PHASE 3: Jump Boost Power-ups - REDUCED for less clutter
         jump_boost_locations = [
-            # Early game - teach players about power-ups
-            (600, WORLD_HEIGHT - 400),   # Near first moving platform
-            
-            # Mid game - help with difficult sections
-            (1600, WORLD_HEIGHT - 1200), # Before disappearing platform section
-            (2800, WORLD_HEIGHT - 1600), # Mid-level boost
-            
-            # Late game - for challenging final areas
-            (4500, WORLD_HEIGHT - 2500), # Before final moving platforms
-            (6000, WORLD_HEIGHT - 3200), # Near victory area
+            # Just 2 strategic power-ups
+            (1600, WORLD_HEIGHT - 1200), # Mid-level boost
+            (4500, WORLD_HEIGHT - 2500), # Before final areas
         ]
         
         for x, y in jump_boost_locations:
@@ -294,19 +260,12 @@ class Game:
             self.powerups.add(jump_boost)
             self.all_sprites.add(jump_boost)
         
-        # Add PHASE 3.1: Vertical Moving Platforms (Elevators)
+        # Add PHASE 3.1: Vertical Moving Platforms (Elevators) - REDUCED
         vertical_platforms_data = [
-            # Early game elevators
-            (900, WORLD_HEIGHT - 500, 100, 25, WORLD_HEIGHT - 700, 60, 1.5),  # x, start_y, width, height, end_y, speed, wait_time
+            # Just a few key elevators
             (1500, WORLD_HEIGHT - 900, 90, 25, WORLD_HEIGHT - 1200, 45, 2.0),
-            
-            # Mid-game elevators
-            (2300, WORLD_HEIGHT - 1200, 110, 25, WORLD_HEIGHT - 1600, 70, 1.0),
-            (3000, WORLD_HEIGHT - 1500, 100, 25, WORLD_HEIGHT - 1900, 50, 2.5),
-            
-            # Upper area elevators (faster, more challenging)
-            (4200, WORLD_HEIGHT - 2000, 80, 25, WORLD_HEIGHT - 2500, 80, 1.0),
-            (5000, WORLD_HEIGHT - 2600, 90, 25, WORLD_HEIGHT - 3000, 90, 0.5),  # Fast elevator
+            (3000, WORLD_HEIGHT - 1500, 100, 25, WORLD_HEIGHT - 1900, 50, 2.0),
+            (5000, WORLD_HEIGHT - 2600, 90, 25, WORLD_HEIGHT - 3000, 60, 1.5),
         ]
         
         for x, start_y, width, height, end_y, speed, wait_time in vertical_platforms_data:
@@ -314,19 +273,12 @@ class Game:
             self.platforms.add(vertical_platform)
             self.all_sprites.add(vertical_platform)
         
-        # Add PHASE 3.2: Rotating Platforms
+        # Add PHASE 3.2: Rotating Platforms - REDUCED
         rotating_platforms_data = [
-            # Early game - easy rotating platforms
-            (700, WORLD_HEIGHT - 400, 25, 30),   # x, y, radius, rotation_speed
-            (1300, WORLD_HEIGHT - 700, 30, 45),
-            
-            # Mid-game - medium challenge
-            (2100, WORLD_HEIGHT - 1000, 28, 60),
-            (2900, WORLD_HEIGHT - 1400, 32, 40),
-            
-            # Upper areas - faster rotation
-            (4400, WORLD_HEIGHT - 2300, 25, 80),
-            (5300, WORLD_HEIGHT - 2700, 30, 70),
+            # Just 3 rotating platforms for variety
+            (1300, WORLD_HEIGHT - 700, 25, 30),   # Early
+            (2900, WORLD_HEIGHT - 1400, 28, 45),  # Mid
+            (4400, WORLD_HEIGHT - 2300, 25, 60),  # Late
         ]
         
         for x, y, radius, rotation_speed in rotating_platforms_data:
@@ -334,16 +286,12 @@ class Game:
             self.platforms.add(rotating_platform)
             self.all_sprites.add(rotating_platform)
         
-        # Add PHASE 3.3: One-Way Platforms (can jump through from below)
+        # Add PHASE 3.3: One-Way Platforms - REDUCED
         oneway_platforms_data = [
-            # Strategic placement for alternate routes
-            (500, WORLD_HEIGHT - 400, 120, 20),    # x, y, width, height
+            # Strategic placement - just a few
             (1100, WORLD_HEIGHT - 600, 100, 20),
-            (1900, WORLD_HEIGHT - 1100, 130, 20),
             (2700, WORLD_HEIGHT - 1300, 110, 20),
-            (3400, WORLD_HEIGHT - 1800, 140, 20),
             (4600, WORLD_HEIGHT - 2400, 100, 20),
-            (5400, WORLD_HEIGHT - 2900, 120, 20),
         ]
         
         for x, y, width, height in oneway_platforms_data:
@@ -351,15 +299,12 @@ class Game:
             self.platforms.add(oneway_platform)
             self.all_sprites.add(oneway_platform)
         
-        # Add PHASE 3.4: Bouncy Platforms (give extra jump height)
+        # Add PHASE 3.4: Bouncy Platforms - REDUCED
         bouncy_platforms_data = [
-            # Placed to help reach higher areas
-            (750, WORLD_HEIGHT - 350, 80, 25, 2.0),   # x, y, width, height, bounce_strength
+            # Just a few bouncy ones
             (1250, WORLD_HEIGHT - 750, 90, 25, 1.8),
-            (2200, WORLD_HEIGHT - 1050, 85, 25, 2.2),  # Extra bouncy
-            (3100, WORLD_HEIGHT - 1550, 80, 25, 1.9),
-            (4100, WORLD_HEIGHT - 2050, 75, 25, 2.1),
-            (5100, WORLD_HEIGHT - 2650, 85, 25, 2.0),
+            (3100, WORLD_HEIGHT - 1550, 80, 25, 2.0),
+            (5100, WORLD_HEIGHT - 2650, 85, 25, 1.9),
         ]
         
         for x, y, width, height, bounce_strength in bouncy_platforms_data:
@@ -367,15 +312,11 @@ class Game:
             self.platforms.add(bouncy_platform)
             self.all_sprites.add(bouncy_platform)
         
-        # Add PHASE 3.5: Ice Platforms (slippery movement)
+        # Add PHASE 3.5: Ice Platforms - REDUCED
         ice_platforms_data = [
-            # Challenge sections with reduced friction
-            (1000, WORLD_HEIGHT - 450, 150, 25),   # x, y, width, height
-            (1700, WORLD_HEIGHT - 850, 120, 25),
+            # Just 2 ice challenges
             (2500, WORLD_HEIGHT - 1250, 140, 25),
-            (3300, WORLD_HEIGHT - 1650, 130, 25),
             (4300, WORLD_HEIGHT - 2150, 110, 25),
-            (5200, WORLD_HEIGHT - 2750, 125, 25),
         ]
         
         for x, y, width, height in ice_platforms_data:
@@ -426,8 +367,27 @@ class Game:
             keys_just_pressed = self.get_keys_just_pressed()
             if self.character_select.handle_input(self.keys_pressed, keys_just_pressed):
                 self.character_config = self.character_select.get_character_config()
-                self.init_game_world()
-                self.state = GAME_STATE_PLAYING
+                
+                # Check if tutorial was requested
+                if self.character_config.get('start_tutorial', False):
+                    self.tutorial_level = TutorialLevel(self.screen, self.character_config)
+                    self.state = GAME_STATE_TUTORIAL
+                else:
+                    self.init_game_world()
+                    self.state = GAME_STATE_PLAYING
+                
+        elif self.state == GAME_STATE_TUTORIAL:
+            if self.tutorial_level:
+                self.tutorial_level.update(dt)
+                
+                # Update camera for tutorial
+                self.camera.update(self.tutorial_level.player.rect)
+                
+                # Check if tutorial is complete or skipped
+                keys_just_pressed = self.get_keys_just_pressed()
+                if self.tutorial_level.is_complete() or self.tutorial_level.should_skip(keys_just_pressed):
+                    self.init_game_world()
+                    self.state = GAME_STATE_PLAYING
                 
         elif self.state == GAME_STATE_PLAYING:
             # Handle player input
@@ -526,6 +486,10 @@ class Game:
         """Draw everything based on current state"""
         if self.state == GAME_STATE_CHARACTER_SELECT:
             self.character_select.draw()
+            
+        elif self.state == GAME_STATE_TUTORIAL:
+            if self.tutorial_level:
+                self.tutorial_level.draw(self.camera)
             
         elif self.state == GAME_STATE_PLAYING:
             # Get theme for background
