@@ -2,7 +2,9 @@ import pygame
 import sys
 from settings import *
 from player import Player
-from platforms import Platform, Ground, MovingPlatform, DisappearingPlatform
+from platforms import (Platform, Ground, MovingPlatform, DisappearingPlatform, 
+                      VerticalMovingPlatform, RotatingPlatform, OneWayPlatform, 
+                      BouncyPlatform, IcePlatform)
 from powerups import PowerUp
 from character_select import CharacterSelectScreen
 
@@ -210,7 +212,7 @@ class Game:
         # Create victory zone at top-right (bigger and more forgiving)
         self.victory_zone = pygame.Rect(6350, WORLD_HEIGHT - 3400, 400, 150)
         
-        # Add PHASE 3: Moving Platforms (Horizontal)
+        # Add PHASE 3: Moving Platforms (Horizontal) - MANY MORE!
         moving_platforms_data = [
             # VERY early test platform - should be visible right away
             (300, WORLD_HEIGHT - 300, 100, 25, 450, 200),   # Super fast for testing
@@ -221,14 +223,28 @@ class Game:
             # Start area moving platform
             (800, WORLD_HEIGHT - 350, 120, 25, 1000, 250),  # Fast for testing
             
+            # Early game - lots of moving platforms
+            (600, WORLD_HEIGHT - 450, 90, 25, 800, 80),     # Medium speed
+            (1200, WORLD_HEIGHT - 550, 100, 25, 1450, 60),  # Slower
+            (1600, WORLD_HEIGHT - 650, 80, 25, 1850, 120),  # Fast
+            
             # Mid-section moving bridges
             (1700, WORLD_HEIGHT - 800, 100, 25, 1900, 30),
+            (2000, WORLD_HEIGHT - 900, 110, 25, 2300, 90),  # New one
             (2800, WORLD_HEIGHT - 1100, 120, 25, 3100, 35),
+            (3200, WORLD_HEIGHT - 1250, 90, 25, 3500, 70),  # New one
             (3500, WORLD_HEIGHT - 1700, 100, 25, 3800, 25),
             
             # Upper area challenging moving platforms
+            (4000, WORLD_HEIGHT - 1800, 80, 25, 4250, 100), # New fast one
+            (4500, WORLD_HEIGHT - 2000, 100, 25, 4800, 60), # New medium
             (4800, WORLD_HEIGHT - 2200, 90, 25, 5100, 50),  # Faster one
+            (5200, WORLD_HEIGHT - 2400, 85, 25, 5500, 80),  # New one
             (5500, WORLD_HEIGHT - 2800, 110, 25, 5900, 30),
+            (5800, WORLD_HEIGHT - 3000, 95, 25, 6200, 90),  # New near end
+            
+            # Final area - tricky moving platforms
+            (6300, WORLD_HEIGHT - 3200, 100, 25, 6600, 70), # Before victory
         ]
         
         for start_x, y, width, height, end_x, speed in moving_platforms_data:
@@ -277,6 +293,95 @@ class Game:
             jump_boost = PowerUp(x, y, "jump_boost", theme)
             self.powerups.add(jump_boost)
             self.all_sprites.add(jump_boost)
+        
+        # Add PHASE 3.1: Vertical Moving Platforms (Elevators)
+        vertical_platforms_data = [
+            # Early game elevators
+            (900, WORLD_HEIGHT - 500, 100, 25, WORLD_HEIGHT - 700, 60, 1.5),  # x, start_y, width, height, end_y, speed, wait_time
+            (1500, WORLD_HEIGHT - 900, 90, 25, WORLD_HEIGHT - 1200, 45, 2.0),
+            
+            # Mid-game elevators
+            (2300, WORLD_HEIGHT - 1200, 110, 25, WORLD_HEIGHT - 1600, 70, 1.0),
+            (3000, WORLD_HEIGHT - 1500, 100, 25, WORLD_HEIGHT - 1900, 50, 2.5),
+            
+            # Upper area elevators (faster, more challenging)
+            (4200, WORLD_HEIGHT - 2000, 80, 25, WORLD_HEIGHT - 2500, 80, 1.0),
+            (5000, WORLD_HEIGHT - 2600, 90, 25, WORLD_HEIGHT - 3000, 90, 0.5),  # Fast elevator
+        ]
+        
+        for x, start_y, width, height, end_y, speed, wait_time in vertical_platforms_data:
+            vertical_platform = VerticalMovingPlatform(x, start_y, width, height, end_y, speed, wait_time, theme)
+            self.platforms.add(vertical_platform)
+            self.all_sprites.add(vertical_platform)
+        
+        # Add PHASE 3.2: Rotating Platforms
+        rotating_platforms_data = [
+            # Early game - easy rotating platforms
+            (700, WORLD_HEIGHT - 400, 25, 30),   # x, y, radius, rotation_speed
+            (1300, WORLD_HEIGHT - 700, 30, 45),
+            
+            # Mid-game - medium challenge
+            (2100, WORLD_HEIGHT - 1000, 28, 60),
+            (2900, WORLD_HEIGHT - 1400, 32, 40),
+            
+            # Upper areas - faster rotation
+            (4400, WORLD_HEIGHT - 2300, 25, 80),
+            (5300, WORLD_HEIGHT - 2700, 30, 70),
+        ]
+        
+        for x, y, radius, rotation_speed in rotating_platforms_data:
+            rotating_platform = RotatingPlatform(x, y, radius, rotation_speed, theme)
+            self.platforms.add(rotating_platform)
+            self.all_sprites.add(rotating_platform)
+        
+        # Add PHASE 3.3: One-Way Platforms (can jump through from below)
+        oneway_platforms_data = [
+            # Strategic placement for alternate routes
+            (500, WORLD_HEIGHT - 400, 120, 20),    # x, y, width, height
+            (1100, WORLD_HEIGHT - 600, 100, 20),
+            (1900, WORLD_HEIGHT - 1100, 130, 20),
+            (2700, WORLD_HEIGHT - 1300, 110, 20),
+            (3400, WORLD_HEIGHT - 1800, 140, 20),
+            (4600, WORLD_HEIGHT - 2400, 100, 20),
+            (5400, WORLD_HEIGHT - 2900, 120, 20),
+        ]
+        
+        for x, y, width, height in oneway_platforms_data:
+            oneway_platform = OneWayPlatform(x, y, width, height, theme)
+            self.platforms.add(oneway_platform)
+            self.all_sprites.add(oneway_platform)
+        
+        # Add PHASE 3.4: Bouncy Platforms (give extra jump height)
+        bouncy_platforms_data = [
+            # Placed to help reach higher areas
+            (750, WORLD_HEIGHT - 350, 80, 25, 2.0),   # x, y, width, height, bounce_strength
+            (1250, WORLD_HEIGHT - 750, 90, 25, 1.8),
+            (2200, WORLD_HEIGHT - 1050, 85, 25, 2.2),  # Extra bouncy
+            (3100, WORLD_HEIGHT - 1550, 80, 25, 1.9),
+            (4100, WORLD_HEIGHT - 2050, 75, 25, 2.1),
+            (5100, WORLD_HEIGHT - 2650, 85, 25, 2.0),
+        ]
+        
+        for x, y, width, height, bounce_strength in bouncy_platforms_data:
+            bouncy_platform = BouncyPlatform(x, y, width, height, bounce_strength, theme)
+            self.platforms.add(bouncy_platform)
+            self.all_sprites.add(bouncy_platform)
+        
+        # Add PHASE 3.5: Ice Platforms (slippery movement)
+        ice_platforms_data = [
+            # Challenge sections with reduced friction
+            (1000, WORLD_HEIGHT - 450, 150, 25),   # x, y, width, height
+            (1700, WORLD_HEIGHT - 850, 120, 25),
+            (2500, WORLD_HEIGHT - 1250, 140, 25),
+            (3300, WORLD_HEIGHT - 1650, 130, 25),
+            (4300, WORLD_HEIGHT - 2150, 110, 25),
+            (5200, WORLD_HEIGHT - 2750, 125, 25),
+        ]
+        
+        for x, y, width, height in ice_platforms_data:
+            ice_platform = IcePlatform(x, y, width, height, theme)
+            self.platforms.add(ice_platform)
+            self.all_sprites.add(ice_platform)
     
     def handle_input(self):
         """Handle input based on current game state"""

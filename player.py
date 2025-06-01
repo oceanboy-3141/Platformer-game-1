@@ -463,19 +463,82 @@ class Player(pygame.sprite.Sprite):
                 self.vel_x = 0
     
     def check_vertical_collisions(self, platforms):
-        """Check and handle vertical collisions with platforms"""
+        """Check and handle vertical collisions with platforms (including special platform types)"""
         self.on_ground = False
+        self.on_moving_platform = None
         
         for platform in platforms:
+            # Skip non-solid platforms (like disappeared platforms)
+            if hasattr(platform, 'is_solid') and not platform.is_solid:
+                continue
+            
+            # Special handling for one-way platforms
+            if hasattr(platform, 'one_way') and platform.one_way:
+                # Only collide if falling down and player is above the platform
+                if self.vel_y > 0 and self.rect.bottom <= platform.rect.top + 10:
+                    if self.rect.colliderect(platform.rect):
+                        self.rect.bottom = platform.rect.top
+                        self.vel_y = 0
+                        self.on_ground = True
+                        self.jump_count = 0
+                continue
+                
             if self.rect.colliderect(platform.rect):
                 if self.vel_y > 0:  # Falling down
                     self.rect.bottom = platform.rect.top
                     self.vel_y = 0
                     self.on_ground = True
                     self.jump_count = 0  # Reset jump count when landing
+                    
+                    # Handle special platform effects
+                    if hasattr(platform, 'bounce_strength'):  # Bouncy platform
+                        self.vel_y = PLAYER_JUMP_SPEED * platform.bounce_strength
+                        self.on_ground = False
+                        platform.trigger_bounce()  # Trigger bounce animation
+                        self.add_bounce_particles()
+                    
+                    # Check if this is a moving platform
+                    if hasattr(platform, 'get_movement_delta'):
+                        self.on_moving_platform = platform
+                    
+                    # Activate disappearing platforms
+                    if hasattr(platform, 'activate'):
+                        platform.activate()
+                        
                 elif self.vel_y < 0:  # Jumping up
                     self.rect.top = platform.rect.bottom
                     self.vel_y = 0
+    
+    def add_bounce_particles(self):
+        """Add special particle effects for bouncy platforms"""
+        for i in range(12):
+            angle = (i / 12) * 360
+            speed = 40 + i * 3
+            vel_x = math.cos(math.radians(angle)) * speed
+            vel_y = math.sin(math.radians(angle)) * speed - 40
+            
+            particle = {
+                'x': self.rect.centerx,
+                'y': self.rect.bottom,
+                'vel_x': vel_x,
+                'vel_y': vel_y,
+                'life': 0.6 + i * 0.03,
+                'max_life': 0.6 + i * 0.03,
+                'color': (255, 150, 0)  # Orange bounce particles
+            }
+            self.particles.append(particle)
+    
+    def apply_ice_friction(self, platforms):
+        """Apply special ice friction when on ice platforms"""
+        if self.on_ground:
+            for platform in platforms:
+                if (hasattr(platform, 'ice_friction') and 
+                    self.rect.colliderect(platform.rect) and 
+                    self.rect.bottom <= platform.rect.top + 5):
+                    # Apply ice friction instead of normal friction
+                    self.vel_x *= (1 - platform.ice_friction)
+                    return True
+        return False
     
     def draw(self, screen):
         """Draw the player and effects on the screen"""

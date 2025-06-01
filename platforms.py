@@ -200,3 +200,197 @@ class Ground(Platform):
         for i in range(0, width, 20):
             pygame.draw.line(self.image, (min(255, color[0]+20), min(255, color[1]+20), min(255, color[2]+20)), 
                            (i, 5), (i, GROUND_HEIGHT-5))
+
+class VerticalMovingPlatform(Platform):
+    """Vertical moving platform (elevator-style)"""
+    def __init__(self, x, start_y, width, height, end_y, speed=40, wait_time=2.0, theme=None):
+        super().__init__(x, start_y, width, height, theme)
+        
+        # Movement properties
+        self.start_y = start_y
+        self.end_y = end_y
+        self.speed = speed  # pixels per second
+        self.direction = 1 if end_y > start_y else -1  # 1 for down, -1 for up
+        self.wait_time = wait_time  # Time to wait at each end
+        self.current_wait = 0.0
+        self.is_waiting = False
+        self.last_y = self.rect.y
+        
+        # Add visual indicator (green border for vertical)
+        self.add_movement_indicator()
+    
+    def add_movement_indicator(self):
+        """Add a green visual indicator to show this platform moves vertically"""
+        border_color = (0, 255, 150)  # Bright green
+        pygame.draw.rect(self.image, border_color, self.image.get_rect(), 3)
+        
+        # Add green up/down arrows
+        center_x = self.rect.width // 2
+        # Up arrow
+        pygame.draw.polygon(self.image, border_color, [
+            (center_x, 2), (center_x - 4, 8), (center_x + 4, 8)
+        ])
+        # Down arrow
+        pygame.draw.polygon(self.image, border_color, [
+            (center_x, self.rect.height - 2), (center_x - 4, self.rect.height - 8), (center_x + 4, self.rect.height - 8)
+        ])
+    
+    def update(self, dt):
+        """Update vertical platform movement"""
+        self.last_y = self.rect.y
+        
+        if self.is_waiting:
+            self.current_wait += dt
+            if self.current_wait >= self.wait_time:
+                self.is_waiting = False
+                self.current_wait = 0.0
+                self.direction *= -1  # Reverse direction
+        else:
+            # Move platform
+            self.rect.y += self.direction * self.speed * dt
+            
+            # Check bounds and start waiting
+            if self.direction > 0 and self.rect.y >= self.end_y:  # Moving down, hit bottom
+                self.rect.y = self.end_y
+                self.is_waiting = True
+            elif self.direction < 0 and self.rect.y <= self.start_y:  # Moving up, hit top
+                self.rect.y = self.start_y
+                self.is_waiting = True
+    
+    def get_movement_delta_y(self):
+        """Get how much the platform moved vertically this frame"""
+        return self.rect.y - self.last_y
+
+class RotatingPlatform(Platform):
+    """Small circular platform that rotates slowly"""
+    def __init__(self, x, y, radius=30, rotation_speed=45, theme=None):
+        # Create a square surface to contain the circle
+        size = radius * 2 + 10
+        super().__init__(x - size//2, y - size//2, size, size, theme)
+        
+        self.radius = radius
+        self.rotation_speed = rotation_speed  # degrees per second
+        self.angle = 0.0
+        self.center_x = x
+        self.center_y = y
+        
+        # Create the rotating platform visual
+        self.create_rotating_visual()
+    
+    def create_rotating_visual(self):
+        """Create the circular rotating platform"""
+        # Clear the surface
+        self.image.fill((0, 0, 0, 0))  # Transparent
+        
+        # Draw the circular platform
+        center = (self.rect.width // 2, self.rect.height // 2)
+        
+        # Main circle
+        pygame.draw.circle(self.image, (150, 100, 200), center, self.radius)
+        
+        # Rotating indicator line (so you can see it rotate)
+        line_end_x = center[0] + self.radius * 0.8 * math.cos(math.radians(self.angle))
+        line_end_y = center[1] + self.radius * 0.8 * math.sin(math.radians(self.angle))
+        pygame.draw.line(self.image, (255, 255, 255), center, (int(line_end_x), int(line_end_y)), 3)
+        
+        # Border
+        pygame.draw.circle(self.image, (255, 100, 255), center, self.radius, 3)
+    
+    def update(self, dt):
+        """Update rotation"""
+        self.angle += self.rotation_speed * dt
+        if self.angle >= 360:
+            self.angle -= 360
+        
+        # Recreate the visual with new rotation
+        self.create_rotating_visual()
+
+class OneWayPlatform(Platform):
+    """Platform you can jump through from below but land on from above"""
+    def __init__(self, x, y, width, height, theme=None):
+        super().__init__(x, y, width, height, theme)
+        self.one_way = True  # Flag for special collision handling
+        
+        # Add visual indicator (yellow border with up arrows)
+        self.add_movement_indicator()
+    
+    def add_movement_indicator(self):
+        """Add visual indicator for one-way platform"""
+        border_color = (255, 255, 0)  # Yellow
+        pygame.draw.rect(self.image, border_color, self.image.get_rect(), 2)
+        
+        # Add up arrows to show you can only land from above
+        for i in range(3):
+            x = (i + 1) * self.rect.width // 4
+            pygame.draw.polygon(self.image, border_color, [
+                (x, 2), (x - 3, 8), (x + 3, 8)
+            ])
+
+class BouncyPlatform(Platform):
+    """Platform that gives extra jump height when landed on"""
+    def __init__(self, x, y, width, height, bounce_strength=1.5, theme=None):
+        super().__init__(x, y, width, height, theme)
+        self.bounce_strength = bounce_strength  # Multiplier for jump height
+        self.bounce_animation_timer = 0.0
+        
+        # Add visual indicator (orange with bounce effect)
+        self.add_movement_indicator()
+    
+    def add_movement_indicator(self):
+        """Add visual indicator for bouncy platform"""
+        border_color = (255, 150, 0)  # Orange
+        pygame.draw.rect(self.image, border_color, self.image.get_rect(), 3)
+        
+        # Add spring coils visual
+        for i in range(0, self.rect.width, 20):
+            # Draw spring coil pattern
+            pygame.draw.circle(self.image, border_color, (i + 10, self.rect.height // 2), 4, 2)
+    
+    def update(self, dt):
+        """Update bounce animation"""
+        self.bounce_animation_timer += dt * 8
+        
+        # Create a subtle bouncing visual effect
+        if self.bounce_animation_timer < 3.14:  # One bounce cycle
+            bounce_offset = int(math.sin(self.bounce_animation_timer) * 2)
+            if bounce_offset != 0:
+                # Recreate image with bounce offset
+                original_image = super().image if hasattr(super(), 'image') else self.image
+                self.image = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
+                self.image.blit(original_image, (0, bounce_offset))
+        
+        if self.bounce_animation_timer > 6.28:  # Reset after full cycle
+            self.bounce_animation_timer = 0.0
+    
+    def trigger_bounce(self):
+        """Trigger the bounce animation"""
+        self.bounce_animation_timer = 0.0
+
+class IcePlatform(Platform):
+    """Slippery platform with reduced friction"""
+    def __init__(self, x, y, width, height, theme=None):
+        super().__init__(x, y, width, height, theme)
+        self.ice_friction = 0.02  # Much lower friction than normal
+        
+        # Add visual indicator (light blue with ice crystals)
+        self.add_movement_indicator()
+    
+    def add_movement_indicator(self):
+        """Add visual indicator for ice platform"""
+        ice_color = (150, 200, 255)  # Light blue
+        pygame.draw.rect(self.image, ice_color, self.image.get_rect(), 2)
+        
+        # Add ice crystal decorations
+        for i in range(0, self.rect.width, 25):
+            # Draw simple ice crystal shapes
+            x = i + 12
+            y = self.rect.height // 2
+            crystal_points = [
+                (x, y - 4), (x - 3, y), (x, y + 4), (x + 3, y)
+            ]
+            pygame.draw.polygon(self.image, ice_color, crystal_points)
+            
+        # Add icy overlay effect
+        ice_overlay = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
+        ice_overlay.fill((*ice_color, 30))  # Semi-transparent ice
+        self.image.blit(ice_overlay, (0, 0))
