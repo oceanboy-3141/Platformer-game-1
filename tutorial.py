@@ -45,47 +45,47 @@ class TutorialLevel:
             {
                 "title": "Basic Movement",
                 "text": ["Practice moving left and right", "Try jumping with SPACEBAR", "You can double-jump in the air!"],
-                "checkpoint": (380, WORLD_HEIGHT - 230)  # Second platform
+                "checkpoint": (350, WORLD_HEIGHT - 220)  # Second platform
             },
             {
                 "title": "Moving Platforms",
                 "text": ["Blue platforms move back and forth", "Stand on them to ride along", "Time your jumps carefully!"],
-                "checkpoint": (750, WORLD_HEIGHT - 320)  # Moving platform area
+                "checkpoint": (750, WORLD_HEIGHT - 290)  # Moving platform area
             },
             {
                 "title": "Bouncy Platforms",
                 "text": ["Orange platforms give you extra jump height", "Use them to reach higher areas", "Great for accessing tough spots!"],
-                "checkpoint": (1200, WORLD_HEIGHT - 420)  # Bouncy platform area
+                "checkpoint": (1200, WORLD_HEIGHT - 370)  # Bouncy platform area
             },
             {
                 "title": "One-Way Platforms",
                 "text": ["Yellow platforms can be jumped through from below", "But you can land on them from above", "Perfect for alternate routes!"],
-                "checkpoint": (1500, WORLD_HEIGHT - 520)  # One-way area
+                "checkpoint": (1650, WORLD_HEIGHT - 490)  # One-way area
             },
             {
                 "title": "Disappearing Platforms",
                 "text": ["Platforms flash red when stepped on", "They disappear after a few seconds", "Move quickly across them!"],
-                "checkpoint": (1850, WORLD_HEIGHT - 620)  # Disappearing area
+                "checkpoint": (1970, WORLD_HEIGHT - 570)  # Disappearing area
             },
             {
                 "title": "Teleporter Elevators",
                 "text": ["Green platforms move you up and down", "Stand on them to teleport along", "Much easier than regular elevators!"],
-                "checkpoint": (2200, WORLD_HEIGHT - 800)  # Elevator area
+                "checkpoint": (2280, WORLD_HEIGHT - 660)  # Elevator area
             },
             {
                 "title": "Ice Platforms",
                 "text": ["Light blue platforms are slippery", "You slide more on ice", "Be careful with your movement!"],
-                "checkpoint": (2600, WORLD_HEIGHT - 900)  # Ice area
+                "checkpoint": (2480, WORLD_HEIGHT - 900)  # Ice area
             },
             {
                 "title": "Power-ups",
                 "text": ["Green crystals give jump boost", "Lasts for 10 seconds", "Great for reaching difficult areas!"],
-                "checkpoint": (3000, WORLD_HEIGHT - 1000)  # Power-up area
+                "checkpoint": (2830, WORLD_HEIGHT - 960)  # Power-up area
             },
             {
                 "title": "Tutorial Complete!",
                 "text": ["You've learned all the mechanics!", "Ready for the main adventure?", "Press ENTER to start the real game!"],
-                "checkpoint": (3500, WORLD_HEIGHT - 1100)  # Final area
+                "checkpoint": (3150, WORLD_HEIGHT - 1090)  # Final area
             }
         ]
     
@@ -98,11 +98,11 @@ class TutorialLevel:
         self.platforms.add(ground)
         self.all_sprites.add(ground)
         
-        # Section 0-1: Basic platforms for movement practice - EASIER JUMPS
+        # Section 0-1: Basic platforms for movement practice - MUCH EASIER JUMPS
         basic_platforms = [
             (50, WORLD_HEIGHT - 150, 200, 25),    # Starting platform
-            (280, WORLD_HEIGHT - 180, 150, 25),   # Easier jump (was 350, 200)
-            (460, WORLD_HEIGHT - 220, 120, 25),   # Easier jump (was 600, 300)
+            (280, WORLD_HEIGHT - 180, 150, 25),   # Very close jump
+            (450, WORLD_HEIGHT - 210, 120, 25),   # Very close jump
         ]
         
         for x, y, width, height in basic_platforms:
@@ -110,76 +110,94 @@ class TutorialLevel:
             self.platforms.add(platform)
             self.all_sprites.add(platform)
         
-        # Section 2: Moving platform introduction - SLOWER & EASIER
-        moving_platform = MovingPlatform(650, WORLD_HEIGHT - 280, 120, 25, 850, 30, theme)  # Slower speed
+        # Section 2: Moving platform introduction - MUCH FASTER & EASIER REACH
+        moving_platform = MovingPlatform(600, WORLD_HEIGHT - 250, 140, 25, 900, 60, theme)  # Faster speed, bigger platform, easier reach
         self.platforms.add(moving_platform)
         self.all_sprites.add(moving_platform)
         
-        # Landing platform after moving platform - EASIER JUMP
-        platform = Platform(950, WORLD_HEIGHT - 320, 150, 25, theme)  # Closer and easier
+        # Landing platform after moving platform - VERY CLOSE
+        platform = Platform(950, WORLD_HEIGHT - 280, 160, 25, theme)  # Much closer and bigger
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
-        # Section 3: Bouncy platform demonstration - MORE VISIBLE & EASIER
-        bouncy_platform = BouncyPlatform(1100, WORLD_HEIGHT - 360, 100, 25, 1.8, theme)  # Moved closer, bigger
+        # Section 3: Bouncy platform demonstration - CLOSER & EASIER
+        bouncy_platform = BouncyPlatform(1130, WORLD_HEIGHT - 320, 120, 25, 1.8, theme)  # Much closer, bigger
         self.platforms.add(bouncy_platform)
         self.all_sprites.add(bouncy_platform)
         
-        # High platform to reach with bouncy - EASIER HEIGHT
-        platform = Platform(1250, WORLD_HEIGHT - 480, 120, 25, theme)  # Lower height
+        # High platform to reach with bouncy - MUCH EASIER HEIGHT
+        platform = Platform(1300, WORLD_HEIGHT - 420, 140, 25, theme)  # Much closer, lower height
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
-        # Section 4: One-way platform - EASIER POSITIONING
-        oneway_platform = OneWayPlatform(1400, WORLD_HEIGHT - 450, 120, 20, theme)  # Easier to reach
+        # Section 4: One-way platform - EASIER POSITIONING + SUPPORTING PLATFORMS
+        # First, add a platform to get TO the one-way area
+        platform = Platform(1480, WORLD_HEIGHT - 450, 100, 25, theme)  # Lead-up platform
+        self.platforms.add(platform)
+        self.all_sprites.add(platform)
+        
+        # The one-way platform itself
+        oneway_platform = OneWayPlatform(1600, WORLD_HEIGHT - 480, 120, 20, theme)  # Easier positioning
         self.platforms.add(oneway_platform)
         self.all_sprites.add(oneway_platform)
         
-        # Platform above and below for demonstration - EASIER
-        platform = Platform(1350, WORLD_HEIGHT - 520, 100, 25, theme)  # Above
-        self.platforms.add(platform)
-        self.all_sprites.add(platform)
-        platform = Platform(1550, WORLD_HEIGHT - 380, 100, 25, theme)  # Below  
+        # Platform above for demonstration - EASIER
+        platform = Platform(1550, WORLD_HEIGHT - 550, 120, 25, theme)  # Above, easier reach
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
-        # Section 5: Disappearing platform - EASIER
-        disappearing_platform = DisappearingPlatform(1700, WORLD_HEIGHT - 520, 100, 25, theme, 6.0)  # Longer time
+        # CRITICAL: Platform BELOW the one-way for demonstration (was missing!)
+        platform = Platform(1620, WORLD_HEIGHT - 400, 100, 25, theme)  # Below the one-way
+        self.platforms.add(platform)
+        self.all_sprites.add(platform)
+        
+        # Continue path after one-way
+        platform = Platform(1750, WORLD_HEIGHT - 520, 120, 25, theme)  # Continue
+        self.platforms.add(platform)
+        self.all_sprites.add(platform)
+        
+        # Section 5: Disappearing platform - MUCH EASIER
+        disappearing_platform = DisappearingPlatform(1900, WORLD_HEIGHT - 560, 120, 25, theme, 8.0)  # Longer time, bigger platform
         self.platforms.add(disappearing_platform)
         self.all_sprites.add(disappearing_platform)
         
-        # Safe platform to land on - EASIER
-        platform = Platform(1850, WORLD_HEIGHT - 580, 120, 25, theme)
+        # Safe platform to land on - MUCH CLOSER
+        platform = Platform(2050, WORLD_HEIGHT - 600, 140, 25, theme)  # Much closer and bigger
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
-        # Section 6: Teleporter elevator - REPLACES REGULAR ELEVATOR
-        teleporter = TeleporterElevator(2100, WORLD_HEIGHT - 650, 100, 25, WORLD_HEIGHT - 850, 35, 2.0, theme)
+        # Section 6: Teleporter elevator - EASIER REACH
+        teleporter = TeleporterElevator(2220, WORLD_HEIGHT - 650, 120, 25, WORLD_HEIGHT - 800, 40, 2.0, theme)  # Bigger platform
         self.platforms.add(teleporter)
         self.all_sprites.add(teleporter)
         
-        # Platform at elevator top - EASIER
-        platform = Platform(2050, WORLD_HEIGHT - 900, 140, 25, theme)
+        # Platform at elevator top - MUCH EASIER
+        platform = Platform(2170, WORLD_HEIGHT - 850, 160, 25, theme)  # Bigger, easier positioning
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
-        # Section 7: Ice platform - EASIER
-        ice_platform = IcePlatform(2400, WORLD_HEIGHT - 950, 140, 25, theme)
+        # Section 7: Ice platform - EASIER REACH AND EXIT
+        ice_platform = IcePlatform(2400, WORLD_HEIGHT - 890, 160, 25, theme)  # Bigger, easier reach
         self.platforms.add(ice_platform)
         self.all_sprites.add(ice_platform)
         
-        # Section 8: Power-up demonstration - EASIER
-        jump_boost = PowerUp(2800, WORLD_HEIGHT - 1000, "jump_boost", theme)
+        # CRITICAL: Make jump after ice MUCH easier
+        platform = Platform(2600, WORLD_HEIGHT - 920, 140, 25, theme)  # Much closer and slightly higher for easier jump
+        self.platforms.add(platform)
+        self.all_sprites.add(platform)
+        
+        # Section 8: Power-up demonstration - EASIER REACH
+        jump_boost = PowerUp(2780, WORLD_HEIGHT - 950, "jump_boost", theme)  # Much closer
         self.powerups.add(jump_boost)
         self.all_sprites.add(jump_boost)
         
         # High platform to reach with power-up - EASIER
-        platform = Platform(3000, WORLD_HEIGHT - 1150, 120, 25, theme)
+        platform = Platform(2900, WORLD_HEIGHT - 1050, 140, 25, theme)  # Much closer, not as high
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
-        # Final platform - EASIER
-        platform = Platform(3300, WORLD_HEIGHT - 1150, 200, 25, theme)
+        # Final platform - EASIER REACH
+        platform = Platform(3080, WORLD_HEIGHT - 1080, 220, 25, theme)  # Much closer, bigger
         self.platforms.add(platform)
         self.all_sprites.add(platform)
     

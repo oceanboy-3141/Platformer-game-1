@@ -25,7 +25,7 @@ class Platform(pygame.sprite.Sprite):
             # Scale the platform image to fit the desired size
             self.image = pygame.transform.scale(self.base_platform_image, (width, height))
             
-            # Apply theme coloring to the platform image
+            # Apply theme coloring to the platform image (can be overridden by subclasses)
             self.apply_theme_coloring(color)
         else:
             # Fallback to simple colored rectangle
@@ -44,12 +44,12 @@ class Platform(pygame.sprite.Sprite):
         """Apply theme-based coloring to the platform image"""
         width, height = self.image.get_size()
         
-        # Create a color overlay with theme-specific effects
+        # Create a MUCH more subtle color overlay to preserve special indicators
         color_overlay = pygame.Surface((width, height), pygame.SRCALPHA)
         
         # Add subtle gradient effects based on theme
         for y in range(height):
-            alpha = int(80 + (y / height) * 40)  # Gradient from 80 to 120 alpha
+            alpha = int(20 + (y / height) * 20)  # Much more subtle: 20 to 40 alpha (was 80-120)
             pygame.draw.line(color_overlay, (*theme_color, alpha), (0, y), (width, y))
         
         # Blend the overlay with the original image
