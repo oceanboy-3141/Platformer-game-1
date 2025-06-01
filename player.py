@@ -10,6 +10,9 @@ class Player(pygame.sprite.Sprite):
         self.character_config = character_config
         self.theme = THEMES[character_config['theme']]
         
+        # Load base humanoid sprite
+        self.base_humanoid_image = self.load_base_sprite()
+        
         # Create player surface and rect
         self.base_image = self.create_character_sprite()
         self.image = self.base_image.copy()
@@ -38,57 +41,249 @@ class Player(pygame.sprite.Sprite):
         self.is_moving = False
         self.facing_right = True
     
-    def create_character_sprite(self):
-        """Create the character sprite based on customization options"""
+    def load_base_sprite(self):
+        """Load and prepare the base humanoid sprite"""
+        try:
+            # Load the humanoid sprite
+            sprite = pygame.image.load("Assets/Player.png").convert_alpha()
+            
+            # Scale to our player size if needed
+            sprite = pygame.transform.scale(sprite, (PLAYER_WIDTH, PLAYER_HEIGHT))
+            
+            return sprite
+        except Exception as e:
+            print(f"Warning: Could not load player sprite: {e}")
+            # Fallback to simple humanoid shape if image fails to load
+            return self.create_fallback_humanoid()
+    
+    def create_fallback_humanoid(self):
+        """Create a simple humanoid shape as fallback"""
         sprite = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT), pygame.SRCALPHA)
         
-        # Draw character based on pattern
-        pattern = self.character_config['pattern']
-        theme = self.theme
+        # Head (circle)
+        head_radius = PLAYER_WIDTH // 4
+        pygame.draw.circle(sprite, (255, 220, 177), 
+                         (PLAYER_WIDTH // 2, head_radius + 2), head_radius)
         
-        if pattern == "solid":
-            sprite.fill(theme['player_color'])
-        elif pattern == "stripes":
-            sprite.fill(theme['player_color'])
-            for i in range(0, PLAYER_HEIGHT, 6):
-                pygame.draw.rect(sprite, theme['player_accent'], (0, i, PLAYER_WIDTH, 3))
-        elif pattern == "dots":
-            sprite.fill(theme['player_color'])
-            for x in range(6, PLAYER_WIDTH-6, 8):
-                for y in range(6, PLAYER_HEIGHT-6, 8):
-                    pygame.draw.circle(sprite, theme['player_accent'], (x, y), 2)
-        elif pattern == "gradient":
-            for y in range(PLAYER_HEIGHT):
-                color_ratio = y / PLAYER_HEIGHT
-                r = int(theme['player_color'][0] * (1-color_ratio) + theme['player_accent'][0] * color_ratio)
-                g = int(theme['player_color'][1] * (1-color_ratio) + theme['player_accent'][1] * color_ratio)
-                b = int(theme['player_color'][2] * (1-color_ratio) + theme['player_accent'][2] * color_ratio)
-                pygame.draw.line(sprite, (r, g, b), (0, y), (PLAYER_WIDTH, y))
+        # Body (rectangle)
+        body_width = PLAYER_WIDTH // 2
+        body_height = PLAYER_HEIGHT // 2
+        pygame.draw.rect(sprite, (100, 100, 100), 
+                        (PLAYER_WIDTH // 2 - body_width // 2, head_radius * 2, 
+                         body_width, body_height))
         
-        # Add accessories
-        accessory = self.character_config['accessory']
-        if accessory == "cape":
-            # Simple cape behind character (drawn first so it's behind)
-            cape_sprite = pygame.Surface((PLAYER_WIDTH + 10, PLAYER_HEIGHT + 5), pygame.SRCALPHA)
-            cape_points = [
-                (PLAYER_WIDTH//4 - 5, PLAYER_HEIGHT//3),
-                (PLAYER_WIDTH//4 - 15, PLAYER_HEIGHT + 5),
-                (PLAYER_WIDTH//4 + 10, PLAYER_HEIGHT + 5),
-                (PLAYER_WIDTH//2 - 5, PLAYER_HEIGHT//3)
-            ]
-            pygame.draw.polygon(cape_sprite, theme['player_accent'], cape_points)
-            cape_sprite.blit(sprite, (5, 0))
-            return cape_sprite
-            
-        elif accessory == "hat":
-            # Simple hat on top
-            pygame.draw.rect(sprite, theme['player_accent'], (PLAYER_WIDTH//4, -2, PLAYER_WIDTH//2, 6))
-            
-        elif accessory == "belt":
-            # Belt around middle
-            pygame.draw.rect(sprite, theme['player_accent'], (0, PLAYER_HEIGHT//2-1, PLAYER_WIDTH, 3))
+        # Arms (rectangles)
+        arm_width = 4
+        arm_height = body_height // 2
+        # Left arm
+        pygame.draw.rect(sprite, (255, 220, 177), 
+                        (PLAYER_WIDTH // 2 - body_width // 2 - arm_width, 
+                         head_radius * 2 + 5, arm_width, arm_height))
+        # Right arm
+        pygame.draw.rect(sprite, (255, 220, 177), 
+                        (PLAYER_WIDTH // 2 + body_width // 2, 
+                         head_radius * 2 + 5, arm_width, arm_height))
+        
+        # Legs (rectangles)
+        leg_width = 6
+        leg_height = PLAYER_HEIGHT - (head_radius * 2 + body_height)
+        # Left leg
+        pygame.draw.rect(sprite, (50, 50, 200), 
+                        (PLAYER_WIDTH // 2 - leg_width - 2, 
+                         head_radius * 2 + body_height, leg_width, leg_height))
+        # Right leg
+        pygame.draw.rect(sprite, (50, 50, 200), 
+                        (PLAYER_WIDTH // 2 + 2, 
+                         head_radius * 2 + body_height, leg_width, leg_height))
         
         return sprite
+    
+    def apply_color_theme(self, sprite):
+        """Apply theme-based color transformations to the sprite"""
+        try:
+            themed_sprite = sprite.copy()
+            theme = self.theme
+            
+            # Get all pixels
+            width, height = themed_sprite.get_size()
+            
+            # Color mapping based on theme
+            color_mappings = {
+                'crystal': {
+                    'primary': theme['player_color'],    # Main body color
+                    'secondary': theme['player_accent'], # Accent color
+                    'skin': (150, 200, 255),            # Cool blue skin tone
+                },
+                'forest': {
+                    'primary': theme['player_color'],    # Forest green
+                    'secondary': theme['player_accent'], # Brown
+                    'skin': (255, 220, 177),            # Natural skin tone
+                },
+                'metal': {
+                    'primary': theme['player_color'],    # Silver
+                    'secondary': theme['player_accent'], # Blue
+                    'skin': (200, 200, 220),            # Metallic skin tone
+                },
+                'stone': {
+                    'primary': theme['player_color'],    # Stone gray
+                    'secondary': theme['player_accent'], # Orange
+                    'skin': (220, 190, 150),            # Earthy skin tone
+                }
+            }
+            
+            theme_colors = color_mappings.get(self.character_config['theme'], color_mappings['crystal'])
+            
+            # Apply color transformations pixel by pixel
+            for x in range(width):
+                for y in range(height):
+                    try:
+                        pixel_color = themed_sprite.get_at((x, y))
+                        if pixel_color[3] > 0:  # If pixel is not transparent
+                            # Determine what type of pixel this is based on its original color
+                            brightness = sum(pixel_color[:3]) / 3
+                            
+                            if brightness > 200:  # Light colors (skin, highlights)
+                                new_color = theme_colors['skin']
+                            elif brightness > 100:  # Medium colors (main body)
+                                new_color = theme_colors['primary']
+                            else:  # Dark colors (details, shadows)
+                                new_color = theme_colors['secondary']
+                            
+                            themed_sprite.set_at((x, y), (*new_color, pixel_color[3]))
+                    except Exception:
+                        # Skip problematic pixels
+                        continue
+            
+            return themed_sprite
+        except Exception as e:
+            print(f"Warning: Could not apply color theme: {e}")
+            return sprite
+    
+    def apply_pattern_effect(self, sprite):
+        """Apply subtle pattern effects to the themed sprite"""
+        try:
+            pattern = self.character_config['pattern']
+            theme = self.theme
+            
+            if pattern == "solid":
+                return sprite  # No additional pattern needed
+            
+            # Create a copy to modify
+            patterned_sprite = sprite.copy()
+            width, height = patterned_sprite.get_size()
+            
+            # Create subtle pattern overlay
+            pattern_overlay = pygame.Surface((width, height), pygame.SRCALPHA)
+            
+            if pattern == "stripes":
+                # Subtle horizontal stripes
+                for i in range(0, height, 8):
+                    pygame.draw.rect(pattern_overlay, (*theme['player_accent'], 40), 
+                                   (0, i, width, 2))
+            
+            elif pattern == "dots":
+                # Small decorative dots
+                for x in range(6, width-6, 10):
+                    for y in range(6, height-6, 10):
+                        pygame.draw.circle(pattern_overlay, (*theme['player_accent'], 60), 
+                                         (x, y), 1)
+            
+            elif pattern == "gradient":
+                # Subtle gradient overlay
+                for y in range(height):
+                    alpha = int((y / height) * 30)
+                    pygame.draw.line(pattern_overlay, (*theme['player_accent'], alpha), 
+                                   (0, y), (width, y))
+            
+            # Blend the pattern overlay very subtly
+            patterned_sprite.blit(pattern_overlay, (0, 0))
+            
+            return patterned_sprite
+        except Exception as e:
+            print(f"Warning: Could not apply pattern effect: {e}")
+            return sprite
+    
+    def add_accessories(self, sprite):
+        """Add accessories to the character sprite without covering the humanoid"""
+        try:
+            accessory = self.character_config['accessory']
+            theme = self.theme
+            
+            if accessory == "none":
+                return sprite
+            
+            # Create a copy to modify
+            accessorized_sprite = sprite.copy()
+            width, height = accessorized_sprite.get_size()
+            
+            if accessory == "cape":
+                # Draw a flowing cape behind the character (more realistic)
+                cape_points = [
+                    (width//4 + 2, height//3),
+                    (width//4 - 6, height - 2),
+                    (width//4 + 10, height - 2),
+                    (width//2 - 2, height//3)
+                ]
+                pygame.draw.polygon(accessorized_sprite, theme['player_accent'], cape_points)
+                
+                # Add cape highlight for depth
+                highlight_points = [
+                    (width//4 + 3, height//3),
+                    (width//4 - 4, height - 2),
+                    (width//4 + 2, height - 2)
+                ]
+                lighter_color = (min(255, theme['player_accent'][0] + 40),
+                               min(255, theme['player_accent'][1] + 40),
+                               min(255, theme['player_accent'][2] + 40))
+                pygame.draw.polygon(accessorized_sprite, lighter_color, highlight_points)
+                
+            elif accessory == "hat":
+                # Draw a hat on top without covering the face
+                hat_rect = pygame.Rect(width//4, 1, width//2, 6)
+                pygame.draw.rect(accessorized_sprite, theme['player_accent'], hat_rect)
+                
+                # Hat brim
+                brim_rect = pygame.Rect(width//4 - 2, 6, width//2 + 4, 2)
+                pygame.draw.rect(accessorized_sprite, theme['player_accent'], brim_rect)
+                
+            elif accessory == "belt":
+                # Draw a belt around the waist area
+                belt_y = int(height * 0.6)  # Around waist area
+                belt_rect = pygame.Rect(width//6, belt_y, width - width//3, 3)
+                pygame.draw.rect(accessorized_sprite, theme['player_accent'], belt_rect)
+                
+                # Belt buckle
+                buckle_rect = pygame.Rect(width//2 - 2, belt_y, 4, 3)
+                buckle_color = (min(255, theme['player_accent'][0] + 60),
+                              min(255, theme['player_accent'][1] + 60),
+                              min(255, theme['player_accent'][2] + 60))
+                pygame.draw.rect(accessorized_sprite, buckle_color, buckle_rect)
+            
+            return accessorized_sprite
+        except Exception as e:
+            print(f"Warning: Could not add accessories: {e}")
+            return sprite
+    
+    def create_character_sprite(self):
+        """Create the complete character sprite with theme, pattern, and accessories"""
+        try:
+            # Start with the base humanoid sprite
+            sprite = self.base_humanoid_image.copy()
+            
+            # Apply theme colors
+            sprite = self.apply_color_theme(sprite)
+            
+            # Apply subtle pattern effects
+            sprite = self.apply_pattern_effect(sprite)
+            
+            # Add accessories without covering the character
+            sprite = self.add_accessories(sprite)
+            
+            return sprite
+        except Exception as e:
+            print(f"Warning: Could not create character sprite: {e}")
+            # Return a basic fallback sprite
+            return self.create_fallback_humanoid()
     
     def handle_input(self, keys):
         """Handle player input for movement and jumping"""
@@ -182,7 +377,7 @@ class Player(pygame.sprite.Sprite):
         
         # Apply walking animation (slight bobbing)
         if self.is_moving and self.on_ground:
-            offset_y = int(math.sin(self.animation_timer) * 1)
+            offset_y = int(math.sin(self.animation_timer) * 2)
             if offset_y != 0:
                 new_image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT), pygame.SRCALPHA)
                 new_image.blit(self.base_image, (0, offset_y))

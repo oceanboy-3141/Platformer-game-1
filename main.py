@@ -17,6 +17,9 @@ class Game:
         # Set up the clock for consistent framerate
         self.clock = pygame.time.Clock()
         
+        # Load background image
+        self.load_background()
+        
         # Game state management
         self.state = GAME_STATE_CHARACTER_SELECT
         self.character_config = None
@@ -35,6 +38,17 @@ class Game:
         
         # Game state
         self.running = True
+    
+    def load_background(self):
+        """Load and prepare the background image"""
+        try:
+            self.background_image = pygame.image.load("Assets/Back round.png").convert()
+            # Scale background to fit screen
+            self.background_image = pygame.transform.scale(self.background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        except:
+            # Fallback to None if image fails to load
+            self.background_image = None
+            print("Warning: Could not load background image, using solid color")
     
     def init_game_world(self):
         """Initialize the game world after character selection"""
@@ -121,6 +135,24 @@ class Game:
             # Update player with platform collision
             self.player.update(self.platforms)
     
+    def draw_background(self, theme):
+        """Draw the background with theme coloring"""
+        if self.background_image:
+            # Apply theme-based color tinting to background
+            tinted_bg = self.background_image.copy()
+            
+            # Create color overlay based on theme
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((*theme['bg_color'], 50))  # Light theme tint
+            
+            # Blend overlay with background using simple blit
+            tinted_bg.blit(overlay, (0, 0))
+            
+            self.screen.blit(tinted_bg, (0, 0))
+        else:
+            # Fallback to solid color background
+            self.screen.fill(theme['bg_color'])
+    
     def draw(self):
         """Draw everything based on current state"""
         if self.state == GAME_STATE_CHARACTER_SELECT:
@@ -130,8 +162,8 @@ class Game:
             # Get theme for background
             theme = THEMES[self.character_config['theme']]
             
-            # Clear screen with theme background color
-            self.screen.fill(theme['bg_color'])
+            # Draw themed background
+            self.draw_background(theme)
             
             # Draw all sprites
             self.all_sprites.draw(self.screen)
