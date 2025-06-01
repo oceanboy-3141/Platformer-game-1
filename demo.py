@@ -5,7 +5,7 @@ from settings import *
 from player import Player
 
 class DemoAI:
-    """AI controller that demonstrates the game by playing it intelligently"""
+    """Ultra-simple, reliable AI that actually works"""
     
     def __init__(self, player, platforms, powerups, victory_zone):
         self.player = player
@@ -13,396 +13,31 @@ class DemoAI:
         self.powerups = powerups
         self.victory_zone = victory_zone
         
-        # AI state management
-        self.current_target = None
-        self.path_finding_timer = 0.0
+        # Simple state tracking
         self.stuck_timer = 0.0
-        self.last_position = (0, 0)
-        self.retry_jump_timer = 0.0
-        
-        # AI decision making
-        self.decision_timer = 0.0
-        self.current_action = "explore"  # explore, jump, wait, collect
-        self.action_duration = 0.0
-        
-        # Platform analysis
-        self.analyzed_platforms = []
-        self.safe_platforms = []
-        self.goal_direction = (1, -1)  # Generally move right and up
-        
-        # AI personality settings
-        self.aggressiveness = 0.7  # How willing to take risks (0-1)
-        self.exploration_tendency = 0.8  # How much to explore vs beeline to goal
-        
-        # Analyze the level once
-        self.analyze_level()
-    
-    def analyze_level(self):
-        """Analyze the level layout to understand platform relationships"""
-        self.analyzed_platforms = []
-        self.safe_platforms = []
-        
-        for platform in self.platforms:
-            platform_info = {
-                'platform': platform,
-                'rect': platform.rect,
-                'type': self.identify_platform_type(platform),
-                'safety': self.calculate_platform_safety(platform),
-                'connections': []
-            }
-            
-            # Mark safe platforms
-            if platform_info['safety'] > 0.5:
-                self.safe_platforms.append(platform_info)
-            
-            self.analyzed_platforms.append(platform_info)
-        
-        # Find connections between platforms
-        for platform_info in self.analyzed_platforms:
-            platform_info['connections'] = self.find_platform_connections(platform_info)
-    
-    def identify_platform_type(self, platform):
-        """Identify what type of platform this is"""
-        if hasattr(platform, 'one_way'):
-            return "oneway"
-        elif hasattr(platform, 'bounce_strength'):
-            return "bouncy"
-        elif hasattr(platform, 'ice_friction'):
-            return "ice"
-        elif hasattr(platform, 'is_solid') and not platform.is_solid:
-            return "disappeared"
-        elif hasattr(platform, 'activated'):
-            return "disappearing"
-        elif hasattr(platform, 'get_movement_delta'):
-            return "moving"
-        elif hasattr(platform, 'get_movement_delta_y'):
-            return "elevator"
-        elif hasattr(platform, 'angle'):
-            return "rotating"
-        elif hasattr(platform, 'rider'):
-            return "teleporter"
-        else:
-            return "normal"
-    
-    def calculate_platform_safety(self, platform):
-        """Calculate how safe a platform is (0-1)"""
-        safety = 0.8  # Base safety
-        
-        # Check platform type dangers
-        platform_type = self.identify_platform_type(platform)
-        if platform_type == "disappearing":
-            safety -= 0.3
-        elif platform_type == "moving":
-            safety -= 0.1
-        elif platform_type == "ice":
-            safety -= 0.2
-        elif platform_type == "rotating":
-            safety -= 0.4
-        elif platform_type == "bouncy":
-            safety += 0.1  # Actually helpful
-        elif platform_type == "teleporter":
-            safety += 0.2  # Very helpful
-        
-        # Check proximity to death zone
-        death_zone_y = WORLD_HEIGHT - GROUND_HEIGHT
-        distance_to_death = death_zone_y - platform.rect.bottom
-        if distance_to_death < 200:
-            safety -= 0.3
-        
-        # Check platform size (bigger = safer)
-        if platform.rect.width > 150:
-            safety += 0.1
-        elif platform.rect.width < 80:
-            safety -= 0.1
-        
-        return max(0.0, min(1.0, safety))
-    
-    def find_platform_connections(self, platform_info):
-        """Find platforms that can be reached from this platform"""
-        connections = []
-        current_rect = platform_info['rect']
-        
-        for other_info in self.analyzed_platforms:
-            if other_info == platform_info:
-                continue
-                
-            other_rect = other_info['rect']
-            
-            # Check if platform is reachable
-            horizontal_distance = abs(other_rect.centerx - current_rect.centerx)
-            vertical_distance = other_rect.centery - current_rect.centery
-            
-            # Can reach if within jump range
-            max_jump_distance = 150  # Player can jump about this far
-            max_jump_height = -200   # Player can jump about this high
-            
-            if (horizontal_distance <= max_jump_distance and 
-                vertical_distance >= max_jump_height and
-                vertical_distance <= 100):  # Don't jump down too far
-                
-                connection_info = {
-                    'platform': other_info,
-                    'distance': horizontal_distance,
-                    'height_diff': vertical_distance,
-                    'difficulty': self.calculate_jump_difficulty(horizontal_distance, vertical_distance)
-                }
-                connections.append(connection_info)
-        
-        return sorted(connections, key=lambda x: x['difficulty'])
-    
-    def calculate_jump_difficulty(self, distance, height_diff):
-        """Calculate how difficult a jump is (0-1)"""
-        difficulty = 0.0
-        
-        # Distance difficulty
-        difficulty += (distance / 150) * 0.4
-        
-        # Height difficulty (upward jumps are harder)
-        if height_diff < 0:  # Going up
-            difficulty += abs(height_diff / 200) * 0.6
-        else:  # Going down (easier)
-            difficulty += (height_diff / 100) * 0.2
-        
-        return min(1.0, difficulty)
+        self.last_x = player.rect.x
+        self.jump_cooldown = 0.0
+        self.direction = 1  # 1 = right, -1 = left
+        self.panic_timer = 0.0
     
     def update(self, dt):
-        """Update AI decision making and control player"""
-        self.decision_timer += dt
-        self.action_duration += dt
+        """Update ultra-simple AI logic"""
+        self.jump_cooldown = max(0, self.jump_cooldown - dt)
+        self.panic_timer += dt
         
-        # Check if stuck
-        current_pos = (self.player.rect.centerx, self.player.rect.centery)
-        if abs(current_pos[0] - self.last_position[0]) < 5 and abs(current_pos[1] - self.last_position[1]) < 5:
+        # Check if stuck (not moving horizontally)
+        if abs(self.player.rect.x - self.last_x) < 3:
             self.stuck_timer += dt
         else:
             self.stuck_timer = 0.0
-            self.last_position = current_pos
+            self.panic_timer = 0.0
+            self.last_x = self.player.rect.x
         
-        # Make decisions every 0.1 seconds
-        if self.decision_timer >= 0.1:
-            self.make_decision()
-            self.decision_timer = 0.0
-        
-        # Execute current action
-        self.execute_action()
+        # Very simple movement
+        self.simple_reliable_movement()
     
-    def make_decision(self):
-        """AI decision making brain"""
-        # Check for immediate dangers
-        if self.is_in_immediate_danger():
-            self.current_action = "escape"
-            self.action_duration = 0.0
-            return
-        
-        # Check for power-ups nearby
-        nearby_powerup = self.find_nearby_powerup()
-        if nearby_powerup and random.random() < 0.7:
-            self.current_target = nearby_powerup
-            self.current_action = "collect"
-            self.action_duration = 0.0
-            return
-        
-        # Check if stuck and need to try something different
-        if self.stuck_timer > 2.0:
-            self.current_action = "unstuck"
-            self.action_duration = 0.0
-            self.stuck_timer = 0.0
-            return
-        
-        # Normal pathfinding toward goal
-        if self.current_action == "explore" or self.action_duration > 3.0:
-            self.find_next_target()
-            self.current_action = "navigate"
-            self.action_duration = 0.0
-    
-    def is_in_immediate_danger(self):
-        """Check if player is in immediate danger"""
-        # Check if falling toward death zone
-        if self.player.vel_y > 10 and self.player.rect.bottom > WORLD_HEIGHT - GROUND_HEIGHT - 200:
-            return True
-        
-        # Check if on disappearing platform
-        for platform in self.platforms:
-            if (hasattr(platform, 'activated') and platform.activated and 
-                self.player.rect.colliderect(platform.rect)):
-                return True
-        
-        return False
-    
-    def find_nearby_powerup(self):
-        """Find power-ups within reasonable distance"""
-        for powerup in self.powerups:
-            distance = math.sqrt((powerup.rect.centerx - self.player.rect.centerx)**2 + 
-                               (powerup.rect.centery - self.player.rect.centery)**2)
-            if distance < 200 and not powerup.collected:
-                return powerup
-        return None
-    
-    def find_next_target(self):
-        """Find the next platform to move toward"""
-        current_platform = self.find_current_platform()
-        
-        if not current_platform:
-            # If not on platform, find nearest safe platform
-            self.current_target = self.find_nearest_safe_platform()
-            return
-        
-        # Find platform connections
-        current_info = None
-        for info in self.analyzed_platforms:
-            if info['platform'] == current_platform:
-                current_info = info
-                break
-        
-        if not current_info or not current_info['connections']:
-            # No connections, find best platform to jump to
-            self.current_target = self.find_best_next_platform()
-            return
-        
-        # Choose best connection based on goal direction
-        best_connection = self.choose_best_connection(current_info['connections'])
-        if best_connection:
-            self.current_target = best_connection['platform']['platform']
-        else:
-            self.current_target = self.find_best_next_platform()
-    
-    def find_current_platform(self):
-        """Find which platform the player is currently on"""
-        for platform in self.platforms:
-            if (self.player.rect.colliderect(platform.rect) and 
-                self.player.rect.bottom <= platform.rect.top + 10):
-                return platform
-        return None
-    
-    def find_nearest_safe_platform(self):
-        """Find the nearest safe platform to land on"""
-        best_platform = None
-        best_distance = float('inf')
-        
-        for info in self.safe_platforms:
-            platform = info['platform']
-            distance = math.sqrt((platform.rect.centerx - self.player.rect.centerx)**2 + 
-                               (platform.rect.centery - self.player.rect.centery)**2)
-            
-            if distance < best_distance:
-                best_distance = distance
-                best_platform = platform
-        
-        return best_platform
-    
-    def find_best_next_platform(self):
-        """Find the best platform to move toward the goal"""
-        goal_x = self.victory_zone.centerx
-        goal_y = self.victory_zone.centery
-        
-        best_platform = None
-        best_score = -1
-        
-        for info in self.analyzed_platforms:
-            platform = info['platform']
-            
-            # Skip if too dangerous or disappeared
-            if info['safety'] < 0.3 or info['type'] == "disappeared":
-                continue
-            
-            # Calculate score based on progress toward goal and safety
-            progress_x = (platform.rect.centerx - self.player.rect.centerx) * self.goal_direction[0]
-            progress_y = (platform.rect.centery - self.player.rect.centery) * self.goal_direction[1]
-            
-            distance_to_goal = math.sqrt((platform.rect.centerx - goal_x)**2 + 
-                                       (platform.rect.centery - goal_y)**2)
-            
-            score = (progress_x * 0.4 + progress_y * 0.3 + info['safety'] * 0.3 - 
-                    distance_to_goal * 0.0001)
-            
-            if score > best_score:
-                best_score = score
-                best_platform = platform
-        
-        return best_platform
-    
-    def choose_best_connection(self, connections):
-        """Choose the best platform connection to use"""
-        goal_x = self.victory_zone.centerx
-        
-        best_connection = None
-        best_score = -1
-        
-        for connection in connections:
-            platform_info = connection['platform']
-            platform = platform_info['platform']
-            
-            # Skip dangerous platforms
-            if platform_info['safety'] < 0.4:
-                continue
-            
-            # Prefer platforms that move us toward the goal
-            progress_score = (platform.rect.centerx - self.player.rect.centerx) / 200.0
-            safety_score = platform_info['safety']
-            difficulty_penalty = connection['difficulty']
-            
-            score = progress_score * 0.5 + safety_score * 0.4 - difficulty_penalty * 0.3
-            
-            if score > best_score:
-                best_score = score
-                best_connection = connection
-        
-        return best_connection
-    
-    def execute_action(self):
-        """Execute the current AI action"""
-        if self.current_action == "escape":
-            self.execute_escape()
-        elif self.current_action == "collect":
-            self.execute_collect()
-        elif self.current_action == "navigate":
-            self.execute_navigate()
-        elif self.current_action == "unstuck":
-            self.execute_unstuck()
-        else:
-            # Default exploration
-            self.execute_navigate()
-    
-    def execute_escape(self):
-        """Execute escape from danger"""
-        # Try to get to nearest safe platform quickly
-        safe_platform = self.find_nearest_safe_platform()
-        if safe_platform:
-            self.move_toward_target(safe_platform.rect.centerx, safe_platform.rect.centery, urgent=True)
-        else:
-            # Just try to move away from danger
-            if self.player.rect.centerx < WORLD_WIDTH / 2:
-                self.move_toward_target(self.player.rect.centerx + 200, self.player.rect.centery - 100)
-            else:
-                self.move_toward_target(self.player.rect.centerx - 200, self.player.rect.centery - 100)
-    
-    def execute_collect(self):
-        """Execute power-up collection"""
-        if self.current_target and hasattr(self.current_target, 'rect'):
-            self.move_toward_target(self.current_target.rect.centerx, self.current_target.rect.centery)
-        else:
-            self.current_action = "navigate"
-    
-    def execute_navigate(self):
-        """Execute navigation toward target"""
-        if self.current_target and hasattr(self.current_target, 'rect'):
-            self.move_toward_target(self.current_target.rect.centerx, self.current_target.rect.centery)
-        else:
-            # No target, just move toward goal
-            self.move_toward_target(self.victory_zone.centerx, self.victory_zone.centery)
-    
-    def execute_unstuck(self):
-        """Execute unstuck behavior"""
-        # Try random direction
-        if random.random() < 0.5:
-            self.move_toward_target(self.player.rect.centerx + random.randint(-200, 200),
-                                  self.player.rect.centery - 100, force_jump=True)
-        else:
-            self.move_toward_target(self.player.rect.centerx - 100, self.player.rect.centery - 50, force_jump=True)
-    
-    def move_toward_target(self, target_x, target_y, urgent=False, force_jump=False):
-        """Move the player toward a target position"""
-        # Create simulated key presses - include ALL keys that player.handle_input expects
+    def simple_reliable_movement(self):
+        """Ultra-simple but reliable movement that actually works"""
         keys = {
             pygame.K_LEFT: False, 
             pygame.K_RIGHT: False, 
@@ -413,51 +48,102 @@ class DemoAI:
             pygame.K_w: False
         }
         
-        dx = target_x - self.player.rect.centerx
-        dy = target_y - self.player.rect.centery
+        # SUPER SIMPLE: Just move right and jump when needed
+        goal_direction = 1 if self.player.rect.x < self.victory_zone.centerx else -1
         
-        # Horizontal movement
-        if abs(dx) > 20:  # Dead zone to prevent jittering
-            if dx > 0:
+        # Always try to move toward goal (unless in air)
+        if self.player.on_ground:
+            if goal_direction > 0:
                 keys[pygame.K_RIGHT] = True
-                keys[pygame.K_d] = True  # Also set WASD equivalent
+                keys[pygame.K_d] = True
             else:
                 keys[pygame.K_LEFT] = True
-                keys[pygame.K_a] = True  # Also set WASD equivalent
+                keys[pygame.K_a] = True
         
-        # Jumping logic
+        # MUCH MORE CONSERVATIVE JUMPING: Only jump when on ground and stuck
         should_jump = False
         
-        if force_jump:
+        # ONLY jump if we're on solid ground AND stuck for a while
+        if (self.player.on_ground and 
+            self.stuck_timer > 2.0 and 
+            self.jump_cooldown <= 0):
             should_jump = True
-        elif urgent and dy < -50:
-            should_jump = True
-        elif dy < -100:  # Target is significantly above
-            should_jump = True
-        elif abs(dx) > 100 and dy < 50:  # Need to jump gap
-            should_jump = True
-        elif self.player.vel_y > 0 and not self.player.on_ground:  # Falling, try to save with double jump
-            should_jump = True
+            print(f"AI JUMPING! Stuck for {self.stuck_timer:.1f} seconds")
         
-        # Smart jumping timing
+        # EMERGENCY jump if we haven't moved in a very long time
+        elif (self.player.on_ground and 
+              self.panic_timer > 4.0 and 
+              self.jump_cooldown <= 0):
+            should_jump = True
+            self.panic_timer = 0.0
+            print(f"AI PANIC JUMP! Been {self.panic_timer:.1f} seconds")
+        
+        # Apply jump ONLY if on ground
         if should_jump:
-            self.retry_jump_timer += 0.016  # Assume 60 FPS
-            if self.retry_jump_timer > 0.2:  # Don't spam jump
-                keys[pygame.K_SPACE] = True
-                keys[pygame.K_UP] = True  # Also set arrow key equivalent
-                keys[pygame.K_w] = True   # Also set WASD equivalent
-                self.retry_jump_timer = 0.0
+            keys[pygame.K_SPACE] = True
+            keys[pygame.K_UP] = True
+            keys[pygame.K_w] = True
+            self.jump_cooldown = 1.0  # Longer cooldown to prevent spam
         
-        # Apply the controls
+        # Apply controls
         self.player.handle_input(keys)
+    
+    def check_edge_simple(self):
+        """Super simple edge detection - just check if we're near world edge"""
+        # Simple check: if player is near the right edge of the world, we're at edge
+        if self.player.rect.right > WORLD_WIDTH - 100:
+            return True
+        
+        # Check if player is falling (might have walked off edge)
+        if not self.player.on_ground and self.player.vel_y > 0:
+            return True
+        
+        return False
+    
+    def find_closest_platform_ahead(self):
+        """Find any platform ahead of us"""
+        for platform in self.platforms:
+            # Skip death ground
+            if platform.rect.bottom >= WORLD_HEIGHT - GROUND_HEIGHT:
+                continue
+            
+            # Any platform to the right of us
+            if platform.rect.centerx > self.player.rect.centerx:
+                return platform
+        
+        return None
+    
+    def can_probably_reach(self, platform):
+        """Very simple reachability check"""
+        if not platform:
+            return False
+        
+        # Just check if it's not too far
+        dx = abs(platform.rect.centerx - self.player.rect.centerx)
+        return dx < 500  # Very generous range
     
     def get_ai_status(self):
         """Get current AI status for display"""
+        if not self.player.on_ground:
+            status = "In Air"
+        elif self.check_edge_simple():
+            status = "At Edge - Looking for Platform"
+        elif self.stuck_timer > 2.0:
+            status = "Stuck - Will Jump Soon"
+        else:
+            status = "Moving Safely"
+        
+        next_platform = self.find_closest_platform_ahead()
+        if next_platform:
+            target_info = f"Platform at ({next_platform.rect.centerx}, {next_platform.rect.centery})"
+        else:
+            target_info = f"Victory Zone ({self.victory_zone.centerx}, {self.victory_zone.centery})"
+        
         return {
-            'action': self.current_action,
-            'target': f"({self.current_target.rect.centerx}, {self.current_target.rect.centery})" if self.current_target and hasattr(self.current_target, 'rect') else "None",
+            'action': status,
+            'target': target_info,
             'stuck_time': f"{self.stuck_timer:.1f}s" if self.stuck_timer > 0 else "Not stuck",
-            'on_platform': self.identify_platform_type(self.find_current_platform()) if self.find_current_platform() else "Airborne"
+            'on_platform': "Ground" if self.player.on_ground else "Airborne"
         }
 
 
