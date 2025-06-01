@@ -6,7 +6,7 @@ class Platform(pygame.sprite.Sprite):
     def __init__(self, x, y, width, height, theme=None):
         super().__init__()
         
-        # Load platform image
+        # Load platform image - RESTORED FOR RAINBOW EFFECT
         try:
             self.base_platform_image = pygame.image.load("Assets/All porpuse platform.png").convert_alpha()
         except Exception as e:
@@ -47,9 +47,9 @@ class Platform(pygame.sprite.Sprite):
         # Create a MUCH more subtle color overlay to preserve special indicators
         color_overlay = pygame.Surface((width, height), pygame.SRCALPHA)
         
-        # Add subtle gradient effects based on theme
+        # Add subtle gradient effects based on theme - REDUCED TO PRESERVE RAINBOW COLORS
         for y in range(height):
-            alpha = int(20 + (y / height) * 20)  # Much more subtle: 20 to 40 alpha (was 80-120)
+            alpha = int(5 + (y / height) * 10)  # MUCH lighter: 5 to 15 alpha to let rainbow show through
             pygame.draw.line(color_overlay, (*theme_color, alpha), (0, y), (width, y))
         
         # Blend the overlay with the original image
@@ -179,27 +179,188 @@ class DisappearingPlatform(Platform):
                 # Platform is now invisible and non-solid
 
 class Ground(Platform):
-    """Special platform class for the ground"""
+    """Special platform class for themed animated death zones"""
     def __init__(self, x, y, width, theme=None):
-        # Use theme colors if provided, otherwise use fallback
+        # Identify theme and set up animation properties
         if theme:
-            color = theme['ground_color']
+            self.theme_name = None
+            # Identify theme by ground colors to determine animation type
+            if theme['ground_color'] == (101, 84, 67):  # Ancient/Stone theme
+                self.theme_name = "ancient"
+            elif theme['ground_color'] == (101, 67, 33):  # Forest theme  
+                self.theme_name = "forest"
+            elif theme['ground_color'] == (60, 90, 140):  # Crystal theme
+                self.theme_name = "crystal" 
+            elif theme['ground_color'] == DARK_GRAY:  # Metal/Cyber theme
+                self.theme_name = "cyber"
+            else:
+                self.theme_name = "default"
         else:
-            color = DARK_GRAY  # Fallback color
+            self.theme_name = "default"
             
         super().__init__(x, y, width, GROUND_HEIGHT, theme)
         
-        # Apply additional ground-specific styling if using platform image
-        if self.base_platform_image:
-            # Make ground platforms slightly darker
-            dark_overlay = pygame.Surface((width, GROUND_HEIGHT), pygame.SRCALPHA)
-            dark_overlay.fill((*color, 80))
-            self.image.blit(dark_overlay, (0, 0))
+        # Animation properties
+        self.animation_timer = 0.0
         
-        # Add texture lines for ground
+        # Create the themed death zone
+        self.create_themed_ground()
+    
+    def create_themed_ground(self):
+        """Create animated themed death zone based on theme"""
+        width = self.rect.width
+        height = self.rect.height
+        
+        # Create base surface
+        self.image = pygame.Surface((width, height), pygame.SRCALPHA)
+        
+        if self.theme_name == "ancient":
+            self.create_lava_ground(width, height)
+        elif self.theme_name == "forest":
+            self.create_poison_ground(width, height)
+        elif self.theme_name == "crystal":
+            self.create_crystal_ground(width, height)
+        elif self.theme_name == "cyber":
+            self.create_cyber_ground(width, height)
+        else:
+            # Default ground
+            self.image.fill(DARK_GRAY)
+    
+    def create_lava_ground(self, width, height):
+        """Create bubbling lava ground for ancient theme"""
+        # Base lava color
+        self.image.fill((120, 30, 0))
+        
+        # Add lava bubbles that change with animation
+        bubble_offset = int(self.animation_timer * 50) % 100
+        for i in range(0, width, 60):
+            bubble_x = i + 30 + (bubble_offset % 20) - 10
+            bubble_y = 20 + int(10 * math.sin(self.animation_timer * 3 + i * 0.1))
+            
+            # Lava bubble
+            pygame.draw.circle(self.image, (200, 80, 0), (bubble_x, bubble_y), 8)
+            pygame.draw.circle(self.image, (255, 120, 20), (bubble_x, bubble_y), 5)
+            
+        # Flowing lava streams
+        for i in range(0, width, 40):
+            stream_y = int(5 * math.sin(self.animation_timer * 2 + i * 0.05))
+            pygame.draw.rect(self.image, (180, 60, 0), (i, 40 + stream_y, 30, 15))
+            
+        # Hot glow at top
+        glow_alpha = int(100 + 50 * math.sin(self.animation_timer * 4))
+        glow_surface = pygame.Surface((width, 20), pygame.SRCALPHA)
+        glow_surface.fill((255, 100, 0, glow_alpha))
+        self.image.blit(glow_surface, (0, 0))
+    
+    def create_poison_ground(self, width, height):
+        """Create swirling poison ground for forest theme"""
+        # Base poison color
+        self.image.fill((60, 80, 30))
+        
+        # Swirling poison patterns
+        for i in range(0, width, 50):
+            swirl_offset = self.animation_timer * 100 + i * 0.3
+            center_x = i + 25
+            
+            # Create spiral pattern
+            for angle in range(0, 360, 30):
+                radius = 15 + 10 * math.sin(swirl_offset * 0.02)
+                x = center_x + radius * math.cos(math.radians(angle + swirl_offset))
+                y = 30 + radius * math.sin(math.radians(angle + swirl_offset)) * 0.5
+                
+                if 0 <= x < width and 0 <= y < height:
+                    pygame.draw.circle(self.image, (120, 180, 60), (int(x), int(y)), 3)
+        
+        # Poison bubbles rising
+        for i in range(0, width, 80):
+            bubble_y = (height - 20) - (self.animation_timer * 20 + i * 2) % height
+            pygame.draw.circle(self.image, (100, 200, 80), (i + 40, int(bubble_y)), 4)
+            
+        # Toxic glow
+        toxic_alpha = int(80 + 40 * math.sin(self.animation_timer * 3))
+        toxic_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        toxic_surface.fill((80, 255, 100, toxic_alpha))
+        self.image.blit(toxic_surface, (0, 0))
+    
+    def create_crystal_ground(self, width, height):
+        """Create sharp crystal spikes for crystal theme"""
+        # Base crystal floor
+        self.image.fill((50, 100, 150))
+        
+        # Sharp crystal spikes
+        for i in range(0, width, 40):
+            spike_height = 30 + int(15 * math.sin(self.animation_timer * 2 + i * 0.1))
+            spike_x = i + 20
+            
+            # Crystal spike points
+            crystal_points = [
+                (spike_x, height),
+                (spike_x - 8, height - spike_height // 2),
+                (spike_x, height - spike_height),
+                (spike_x + 8, height - spike_height // 2)
+            ]
+            
+            # Draw crystal spike with gradient
+            pygame.draw.polygon(self.image, (150, 200, 255), crystal_points)
+            pygame.draw.polygon(self.image, (200, 230, 255), [
+                (spike_x, height),
+                (spike_x - 4, height - spike_height // 2),
+                (spike_x, height - spike_height)
+            ])
+        
+        # Crystal glow effect
+        glow_intensity = int(60 + 30 * math.sin(self.animation_timer * 4))
+        for i in range(0, width, 40):
+            glow_x = i + 20
+            glow_surface = pygame.Surface((30, 40), pygame.SRCALPHA)
+            pygame.draw.circle(glow_surface, (100, 200, 255, glow_intensity), (15, 35), 15)
+            self.image.blit(glow_surface, (glow_x - 15, height - 40))
+    
+    def create_cyber_ground(self, width, height):
+        """Create nano bot swarm with lasers for cyber theme"""
+        # Base metallic floor
+        self.image.fill((80, 80, 100))
+        
+        # Nano bot swarm
+        bot_offset = self.animation_timer * 150
+        for i in range(0, width, 30):
+            for j in range(0, height, 25):
+                bot_x = i + (bot_offset + i * j) % 60 - 30
+                bot_y = j + int(5 * math.sin(self.animation_timer * 3 + i * 0.2))
+                
+                if 0 <= bot_x < width:
+                    # Nano bot (small rectangle)
+                    pygame.draw.rect(self.image, (150, 150, 180), (int(bot_x), bot_y, 4, 4))
+                    # Bot glow
+                    pygame.draw.rect(self.image, (200, 200, 255), (int(bot_x) + 1, bot_y + 1, 2, 2))
+        
+        # Horizontal scanning lasers
+        laser_y = int(height / 2 + 20 * math.sin(self.animation_timer * 2))
+        laser_alpha = int(150 + 100 * math.sin(self.animation_timer * 6))
+        
+        # Main laser beam
+        laser_surface = pygame.Surface((width, 6), pygame.SRCALPHA)
+        laser_surface.fill((255, 100, 100, laser_alpha))
+        self.image.blit(laser_surface, (0, laser_y))
+        
+        # Laser glow
+        glow_surface = pygame.Surface((width, 12), pygame.SRCALPHA)
+        glow_surface.fill((255, 150, 150, laser_alpha // 3))
+        self.image.blit(glow_surface, (0, laser_y - 3))
+        
+        # Grid pattern overlay
+        grid_alpha = int(40 + 20 * math.sin(self.animation_timer * 1.5))
         for i in range(0, width, 20):
-            pygame.draw.line(self.image, (min(255, color[0]+20), min(255, color[1]+20), min(255, color[2]+20)), 
-                           (i, 5), (i, GROUND_HEIGHT-5))
+            pygame.draw.line(self.image, (120, 120, 150, grid_alpha), (i, 0), (i, height))
+        for j in range(0, height, 15):
+            pygame.draw.line(self.image, (120, 120, 150, grid_alpha), (0, j), (width, j))
+    
+    def update(self, dt):
+        """Update animation"""
+        self.animation_timer += dt
+        
+        # Recreate the animated ground
+        self.create_themed_ground()
 
 class VerticalMovingPlatform(Platform):
     """Vertical moving platform (elevator-style)"""
@@ -279,7 +440,8 @@ class RotatingPlatform(Platform):
     
     def create_rotating_visual(self):
         """Create the circular rotating platform"""
-        # Clear the surface
+        # Create a fresh transparent surface every time
+        self.image = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
         self.image.fill((0, 0, 0, 0))  # Transparent
         
         # Draw the circular platform
@@ -288,10 +450,13 @@ class RotatingPlatform(Platform):
         # Main circle
         pygame.draw.circle(self.image, (150, 100, 200), center, self.radius)
         
-        # Rotating indicator line (so you can see it rotate)
+        # Rotating indicator line (so you can see it rotate) - MAKE IT MORE VISIBLE
         line_end_x = center[0] + self.radius * 0.8 * math.cos(math.radians(self.angle))
         line_end_y = center[1] + self.radius * 0.8 * math.sin(math.radians(self.angle))
-        pygame.draw.line(self.image, (255, 255, 255), center, (int(line_end_x), int(line_end_y)), 3)
+        pygame.draw.line(self.image, (255, 255, 255), center, (int(line_end_x), int(line_end_y)), 4)
+        
+        # Add a rotating dot at the end of the line for even better visibility
+        pygame.draw.circle(self.image, (255, 255, 0), (int(line_end_x), int(line_end_y)), 4)
         
         # Border
         pygame.draw.circle(self.image, (255, 100, 255), center, self.radius, 3)
@@ -338,16 +503,23 @@ class BouncyPlatform(Platform):
     
     def add_movement_indicator(self):
         """Add visual indicator for bouncy platform"""
-        border_color = (255, 100, 0)  # Bright orange
-        pygame.draw.rect(self.image, border_color, self.image.get_rect(), 5)  # Thicker border
+        border_color = (255, 80, 0)  # Even brighter orange
         
-        # Add spring coils visual - more prominent
-        for i in range(0, self.rect.width, 15):  # More coils
+        # Fill entire platform with orange tint first
+        orange_overlay = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
+        orange_overlay.fill((*border_color, 80))  # Orange tint over whole platform
+        self.image.blit(orange_overlay, (0, 0))
+        
+        # Then add thick border
+        pygame.draw.rect(self.image, border_color, self.image.get_rect(), 8)  # Much thicker border
+        
+        # Add spring coils visual - much more prominent
+        for i in range(0, self.rect.width, 12):  # Even more frequent coils
             # Draw spring coil pattern
-            pygame.draw.circle(self.image, border_color, (i + 7, self.rect.height // 2), 5, 3)
-            # Add bouncy dots
-            pygame.draw.circle(self.image, border_color, (i + 7, 5), 2)
-            pygame.draw.circle(self.image, border_color, (i + 7, self.rect.height - 5), 2)
+            pygame.draw.circle(self.image, border_color, (i + 6, self.rect.height // 2), 6, 4)
+            # Add bouncy dots above and below
+            pygame.draw.circle(self.image, border_color, (i + 6, 3), 3)
+            pygame.draw.circle(self.image, border_color, (i + 6, self.rect.height - 3), 3)
     
     def update(self, dt):
         """Update bounce animation"""

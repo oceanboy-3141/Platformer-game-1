@@ -4,10 +4,11 @@ from settings import *
 from player import Player
 from platforms import (Platform, Ground, MovingPlatform, DisappearingPlatform, 
                       VerticalMovingPlatform, RotatingPlatform, OneWayPlatform, 
-                      BouncyPlatform, IcePlatform)
+                      BouncyPlatform, IcePlatform, TeleporterElevator)
 from powerups import PowerUp
 from character_select import CharacterSelectScreen
 from tutorial import TutorialLevel
+from demo import DemoLevel
 
 class Camera:
     def __init__(self):
@@ -62,6 +63,9 @@ class Game:
         
         # Tutorial system
         self.tutorial_level = None
+        
+        # Demo system
+        self.demo_level = None
         
         # Track key states for proper input handling
         self.keys_pressed = pygame.key.get_pressed()
@@ -269,7 +273,7 @@ class Game:
         ]
         
         for x, start_y, width, height, end_y, speed, wait_time in vertical_platforms_data:
-            vertical_platform = VerticalMovingPlatform(x, start_y, width, height, end_y, speed, wait_time, theme)
+            vertical_platform = TeleporterElevator(x, start_y, width, height, end_y, speed, wait_time, theme)
             self.platforms.add(vertical_platform)
             self.all_sprites.add(vertical_platform)
         
@@ -368,8 +372,14 @@ class Game:
             if self.character_select.handle_input(self.keys_pressed, keys_just_pressed):
                 self.character_config = self.character_select.get_character_config()
                 
+                # Check if demo was requested
+                if self.character_config.get('start_demo', False):
+                    # Initialize game world first for demo to copy
+                    self.init_game_world()
+                    self.demo_level = DemoLevel(self.screen, self.character_config, self)
+                    self.state = GAME_STATE_DEMO
                 # Check if tutorial was requested
-                if self.character_config.get('start_tutorial', False):
+                elif self.character_config.get('start_tutorial', False):
                     self.tutorial_level = TutorialLevel(self.screen, self.character_config)
                     self.state = GAME_STATE_TUTORIAL
                 else:
@@ -389,6 +399,26 @@ class Game:
                     self.init_game_world()
                     self.state = GAME_STATE_PLAYING
                 
+        elif self.state == GAME_STATE_DEMO:
+            if self.demo_level:
+                self.demo_level.update(dt)
+                
+                # Update camera for demo
+                self.camera.update(self.demo_level.player.rect)
+                
+                # Check if demo should exit or restart
+                keys_just_pressed = self.get_keys_just_pressed()
+                if self.demo_level.should_exit(keys_just_pressed):
+                    self.state = GAME_STATE_CHARACTER_SELECT
+                elif self.demo_level.should_restart(keys_just_pressed):
+                    # Restart demo
+                    self.init_game_world()
+                    self.demo_level = DemoLevel(self.screen, self.character_config, self)
+                elif self.demo_level.is_complete():
+                    # Demo completed, restart automatically
+                    self.init_game_world()
+                    self.demo_level = DemoLevel(self.screen, self.character_config, self)
+                
         elif self.state == GAME_STATE_PLAYING:
             # Handle player input
             self.player.handle_input(self.keys_pressed)
@@ -399,6 +429,12 @@ class Game:
             # Update all platforms (for moving/disappearing behavior) - use the same dt!
             for platform in self.platforms:
                 platform.update(dt)
+                
+                # Special handling for teleporter elevator - same as tutorial
+                if hasattr(platform, 'rider') and platform.rider:
+                    # Check if rider is still on the platform
+                    if not self.player.rect.colliderect(platform.rect):
+                        platform.remove_rider()  # Remove rider if no longer touching
             
             # Update power-ups
             for powerup in self.powerups:
@@ -490,6 +526,10 @@ class Game:
         elif self.state == GAME_STATE_TUTORIAL:
             if self.tutorial_level:
                 self.tutorial_level.draw(self.camera)
+            
+        elif self.state == GAME_STATE_DEMO:
+            if self.demo_level:
+                self.demo_level.draw(self.camera)
             
         elif self.state == GAME_STATE_PLAYING:
             # Get theme for background

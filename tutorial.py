@@ -15,7 +15,7 @@ class TutorialLevel:
         
         # Tutorial state
         self.current_section = 0
-        self.sections_completed = [False] * 10  # Track completion of each section
+        self.sections_completed = [False] * 11  # Track completion of each section
         self.tutorial_complete = False
         
         # Create sprite groups
@@ -35,7 +35,7 @@ class TutorialLevel:
         self.font_medium = pygame.font.Font(None, 28)
         self.font_small = pygame.font.Font(None, 22)
         
-        # Tutorial sections with explanations - UPDATED CHECKPOINTS
+        # Tutorial sections with explanations - UPDATED CHECKPOINTS WITH ROTATING PLATFORM
         self.sections = [
             {
                 "title": "Welcome to the Tutorial!",
@@ -59,33 +59,38 @@ class TutorialLevel:
             },
             {
                 "title": "One-Way Platforms",
-                "text": ["Yellow platforms can be jumped through from below", "But you can land on them from above", "Perfect for alternate routes!"],
+                "text": ["Yellow platforms can be jumped through from below", "But you can land on them from above", "Use the steps to get underneath and test!"],
                 "checkpoint": (1650, WORLD_HEIGHT - 490)  # One-way area
+            },
+            {
+                "title": "Rotating Platforms",
+                "text": ["Purple circles rotate slowly", "Time your jumps as they spin", "The white line shows rotation direction"],
+                "checkpoint": (1980, WORLD_HEIGHT - 570)  # Rotating platform area
             },
             {
                 "title": "Disappearing Platforms",
                 "text": ["Platforms flash red when stepped on", "They disappear after a few seconds", "Move quickly across them!"],
-                "checkpoint": (1970, WORLD_HEIGHT - 570)  # Disappearing area
+                "checkpoint": (2320, WORLD_HEIGHT - 640)  # Disappearing area
             },
             {
                 "title": "Teleporter Elevators",
                 "text": ["Green platforms move you up and down", "Stand on them to teleport along", "Much easier than regular elevators!"],
-                "checkpoint": (2280, WORLD_HEIGHT - 660)  # Elevator area
+                "checkpoint": (2640, WORLD_HEIGHT - 730)  # Elevator area
             },
             {
                 "title": "Ice Platforms",
                 "text": ["Light blue platforms are slippery", "You slide more on ice", "Be careful with your movement!"],
-                "checkpoint": (2480, WORLD_HEIGHT - 900)  # Ice area
+                "checkpoint": (2820, WORLD_HEIGHT - 970)  # Ice area
             },
             {
                 "title": "Power-ups",
                 "text": ["Green crystals give jump boost", "Lasts for 10 seconds", "Great for reaching difficult areas!"],
-                "checkpoint": (2830, WORLD_HEIGHT - 960)  # Power-up area
+                "checkpoint": (3200, WORLD_HEIGHT - 1030)  # Power-up area
             },
             {
                 "title": "Tutorial Complete!",
                 "text": ["You've learned all the mechanics!", "Ready for the main adventure?", "Press ENTER to start the real game!"],
-                "checkpoint": (3150, WORLD_HEIGHT - 1090)  # Final area
+                "checkpoint": (3500, WORLD_HEIGHT - 1160)  # Final area
             }
         ]
     
@@ -151,53 +156,71 @@ class TutorialLevel:
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
+        # EASIER ACCESS: Add ramp/steps to get under the yellow platform
+        platform = Platform(1500, WORLD_HEIGHT - 350, 80, 25, theme)   # Step 1 to get under
+        self.platforms.add(platform)
+        self.all_sprites.add(platform)
+        platform = Platform(1420, WORLD_HEIGHT - 300, 80, 25, theme)   # Step 2 to get under  
+        self.platforms.add(platform)
+        self.all_sprites.add(platform)
+        
         # Continue path after one-way
         platform = Platform(1750, WORLD_HEIGHT - 520, 120, 25, theme)  # Continue
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
-        # Section 5: Disappearing platform - MUCH EASIER
-        disappearing_platform = DisappearingPlatform(1900, WORLD_HEIGHT - 560, 120, 25, theme, 8.0)  # Longer time, bigger platform
+        # Section 5: Rotating platform - NEW SECTION
+        rotating_platform = RotatingPlatform(1950, WORLD_HEIGHT - 560, 35, 60, theme)  # Higher rotation speed: 60 degrees/sec
+        self.platforms.add(rotating_platform)
+        self.all_sprites.add(rotating_platform)
+        
+        # Platform to land on after rotating platform
+        platform = Platform(2100, WORLD_HEIGHT - 590, 120, 25, theme)
+        self.platforms.add(platform)
+        self.all_sprites.add(platform)
+        
+        # Section 6: Disappearing platform - MUCH EASIER (moved to section 6)
+        disappearing_platform = DisappearingPlatform(2250, WORLD_HEIGHT - 630, 120, 25, theme, 8.0)  # Longer time, bigger platform
         self.platforms.add(disappearing_platform)
         self.all_sprites.add(disappearing_platform)
         
         # Safe platform to land on - MUCH CLOSER
-        platform = Platform(2050, WORLD_HEIGHT - 600, 140, 25, theme)  # Much closer and bigger
+        platform = Platform(2400, WORLD_HEIGHT - 670, 140, 25, theme)  # Much closer and bigger
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
-        # Section 6: Teleporter elevator - EASIER REACH
-        teleporter = TeleporterElevator(2220, WORLD_HEIGHT - 650, 120, 25, WORLD_HEIGHT - 800, 40, 2.0, theme)  # Bigger platform
+        # Section 7: Teleporter elevator - EASIER REACH (moved to section 7)
+        teleporter = TeleporterElevator(2570, WORLD_HEIGHT - 720, 120, 25, WORLD_HEIGHT - 870, 40, 2.0, theme)  # Bigger platform
         self.platforms.add(teleporter)
         self.all_sprites.add(teleporter)
         
         # Platform at elevator top - MUCH EASIER
-        platform = Platform(2170, WORLD_HEIGHT - 850, 160, 25, theme)  # Bigger, easier positioning
+        platform = Platform(2520, WORLD_HEIGHT - 920, 160, 25, theme)  # Bigger, easier positioning
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
-        # Section 7: Ice platform - EASIER REACH AND EXIT
-        ice_platform = IcePlatform(2400, WORLD_HEIGHT - 890, 160, 25, theme)  # Bigger, easier reach
+        # Section 8: Ice platform - EASIER REACH AND EXIT (moved to section 8)
+        ice_platform = IcePlatform(2750, WORLD_HEIGHT - 960, 160, 25, theme)  # Bigger, easier reach
         self.platforms.add(ice_platform)
         self.all_sprites.add(ice_platform)
         
         # CRITICAL: Make jump after ice MUCH easier
-        platform = Platform(2600, WORLD_HEIGHT - 920, 140, 25, theme)  # Much closer and slightly higher for easier jump
+        platform = Platform(2950, WORLD_HEIGHT - 990, 140, 25, theme)  # Much closer and slightly higher for easier jump
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
-        # Section 8: Power-up demonstration - EASIER REACH
-        jump_boost = PowerUp(2780, WORLD_HEIGHT - 950, "jump_boost", theme)  # Much closer
+        # Section 9: Power-up demonstration - EASIER REACH (moved to section 9)
+        jump_boost = PowerUp(3130, WORLD_HEIGHT - 1020, "jump_boost", theme)  # Much closer
         self.powerups.add(jump_boost)
         self.all_sprites.add(jump_boost)
         
         # High platform to reach with power-up - EASIER
-        platform = Platform(2900, WORLD_HEIGHT - 1050, 140, 25, theme)  # Much closer, not as high
+        platform = Platform(3250, WORLD_HEIGHT - 1120, 140, 25, theme)  # Much closer, not as high
         self.platforms.add(platform)
         self.all_sprites.add(platform)
         
         # Final platform - EASIER REACH
-        platform = Platform(3080, WORLD_HEIGHT - 1080, 220, 25, theme)  # Much closer, bigger
+        platform = Platform(3430, WORLD_HEIGHT - 1150, 220, 25, theme)  # Much closer, bigger
         self.platforms.add(platform)
         self.all_sprites.add(platform)
     
