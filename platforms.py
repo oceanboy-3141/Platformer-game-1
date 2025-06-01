@@ -7,11 +7,11 @@ class Platform(pygame.sprite.Sprite):
         
         # Load platform image
         try:
-            self.base_platform_image = pygame.image.load("Assets/Platform.png").convert_alpha()
-        except:
+            self.base_platform_image = pygame.image.load("Assets/All porpuse platform.png").convert_alpha()
+        except Exception as e:
             # Fallback to colored rectangle if image fails
             self.base_platform_image = None
-            print("Warning: Could not load platform image, using solid color")
+            print(f"Warning: Could not load platform image: {e}")
         
         # Use theme colors if provided, otherwise use fallback
         if theme:
@@ -43,12 +43,28 @@ class Platform(pygame.sprite.Sprite):
         """Apply theme-based coloring to the platform image"""
         width, height = self.image.get_size()
         
-        # Create a color overlay
+        # Create a color overlay with theme-specific effects
         color_overlay = pygame.Surface((width, height), pygame.SRCALPHA)
-        color_overlay.fill((*theme_color, 100))  # Semi-transparent theme color
         
-        # Blend the overlay with the original image using correct blend mode
+        # Add subtle gradient effects based on theme
+        for y in range(height):
+            alpha = int(80 + (y / height) * 40)  # Gradient from 80 to 120 alpha
+            pygame.draw.line(color_overlay, (*theme_color, alpha), (0, y), (width, y))
+        
+        # Blend the overlay with the original image
         self.image.blit(color_overlay, (0, 0))
+        
+        # Add a subtle highlight to the top edge for 3D effect
+        highlight_color = (min(255, theme_color[0] + 30), 
+                          min(255, theme_color[1] + 30), 
+                          min(255, theme_color[2] + 30))
+        pygame.draw.line(self.image, highlight_color, (0, 0), (width, 0), 2)
+        
+        # Add a subtle shadow to the bottom edge
+        shadow_color = (max(0, theme_color[0] - 30), 
+                       max(0, theme_color[1] - 30), 
+                       max(0, theme_color[2] - 30))
+        pygame.draw.line(self.image, shadow_color, (0, height-1), (width, height-1), 1)
     
     def draw(self, screen):
         """Draw the platform on the screen"""
@@ -73,6 +89,6 @@ class Ground(Platform):
             self.image.blit(dark_overlay, (0, 0))
         
         # Add texture lines for ground
-        texture_color = (min(255, color[0]+20), min(255, color[1]+20), min(255, color[2]+20))
         for i in range(0, width, 20):
-            pygame.draw.line(self.image, texture_color, (i, 5), (i, GROUND_HEIGHT-5))
+            pygame.draw.line(self.image, (min(255, color[0]+20), min(255, color[1]+20), min(255, color[2]+20)), 
+                           (i, 5), (i, GROUND_HEIGHT-5))

@@ -29,6 +29,9 @@ class CharacterSelectScreen:
         # Load base humanoid sprite for preview
         self.base_humanoid = self.load_base_sprite()
         
+        # Load background images for preview
+        self.load_background_previews()
+        
     def load_base_sprite(self):
         """Load the base humanoid sprite for preview"""
         try:
@@ -267,8 +270,18 @@ class CharacterSelectScreen:
         """Draw the character selection screen"""
         theme = THEMES[self.selected_theme]
         
-        # Background
-        self.screen.fill(theme['bg_color'])
+        # Background - use themed background if available
+        if self.selected_theme in self.background_previews and self.background_previews[self.selected_theme]:
+            # Draw the themed background
+            self.screen.blit(self.background_previews[self.selected_theme], (0, 0))
+            
+            # Add subtle overlay to make text more readable
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((*BLACK, 80))  # Semi-transparent dark overlay
+            self.screen.blit(overlay, (0, 0))
+        else:
+            # Fallback to solid color background
+            self.screen.fill(theme['bg_color'])
         
         # Title
         title_text = self.font_large.render("Choose Your Character", True, WHITE)
@@ -332,4 +345,27 @@ class CharacterSelectScreen:
             'theme': self.selected_theme,
             'pattern': self.selected_pattern,
             'accessory': self.selected_accessory
-        } 
+        }
+    
+    def load_background_previews(self):
+        """Load background images for theme previews"""
+        self.background_previews = {}
+        
+        # Background file mapping for each theme
+        background_files = {
+            'crystal': 'Back round Crystal.png',
+            'forest': 'Background forest gardioun.png', 
+            'metal': 'Background Cyber runner.png',
+            'stone': 'Background anchiant explorer.png'
+        }
+        
+        # Load all theme backgrounds at a smaller size for preview
+        for theme_name, filename in background_files.items():
+            try:
+                bg_image = pygame.image.load(f"Assets/{filename}").convert()
+                # Scale to screen size for preview
+                bg_image = pygame.transform.scale(bg_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+                self.background_previews[theme_name] = bg_image
+            except Exception as e:
+                print(f"Warning: Could not load background preview for {theme_name}: {e}")
+                self.background_previews[theme_name] = None 

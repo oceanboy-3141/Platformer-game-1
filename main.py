@@ -41,14 +41,28 @@ class Game:
     
     def load_background(self):
         """Load and prepare the background image"""
-        try:
-            self.background_image = pygame.image.load("Assets/Back round.png").convert()
-            # Scale background to fit screen
-            self.background_image = pygame.transform.scale(self.background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
-        except:
-            # Fallback to None if image fails to load
-            self.background_image = None
-            print("Warning: Could not load background image, using solid color")
+        # We'll load theme-specific backgrounds later when theme is selected
+        self.background_images = {}
+        
+        # Background file mapping for each theme
+        background_files = {
+            'crystal': 'Back round Crystal.png',
+            'forest': 'Background forest gardioun.png', 
+            'metal': 'Background Cyber runner.png',
+            'stone': 'Background anchiant explorer.png'
+        }
+        
+        # Load all theme backgrounds
+        for theme_name, filename in background_files.items():
+            try:
+                bg_image = pygame.image.load(f"Assets/{filename}").convert()
+                # Scale background to fit screen
+                bg_image = pygame.transform.scale(bg_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+                self.background_images[theme_name] = bg_image
+                print(f"Loaded background for {theme_name}: {filename}")
+            except Exception as e:
+                print(f"Warning: Could not load background for {theme_name}: {e}")
+                self.background_images[theme_name] = None
     
     def init_game_world(self):
         """Initialize the game world after character selection"""
@@ -137,13 +151,16 @@ class Game:
     
     def draw_background(self, theme):
         """Draw the background with theme coloring"""
-        if self.background_image:
-            # Apply theme-based color tinting to background
-            tinted_bg = self.background_image.copy()
+        # Get the theme key from the character config
+        theme_key = self.character_config['theme']
+        
+        if theme_key in self.background_images and self.background_images[theme_key]:
+            # Use the theme-specific background
+            tinted_bg = self.background_images[theme_key].copy()
             
             # Create color overlay based on theme
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            overlay.fill((*theme['bg_color'], 50))  # Light theme tint
+            overlay.fill((*theme['bg_color'], 30))  # Light theme tint
             
             # Blend overlay with background using simple blit
             tinted_bg.blit(overlay, (0, 0))
@@ -167,43 +184,9 @@ class Game:
             
             # Draw all sprites
             self.all_sprites.draw(self.screen)
-            
-            # Draw player info (debug)
-            self.draw_debug_info()
         
         # Update display
         pygame.display.flip()
-    
-    def draw_debug_info(self):
-        """Draw debug information on screen"""
-        font = pygame.font.Font(None, 36)
-        
-        # Player position
-        pos_text = font.render(f"Position: ({self.player.rect.x}, {self.player.rect.y})", True, WHITE)
-        self.screen.blit(pos_text, (10, 10))
-        
-        # Player velocity
-        vel_text = font.render(f"Velocity: ({self.player.vel_x:.1f}, {self.player.vel_y:.1f})", True, WHITE)
-        self.screen.blit(vel_text, (10, 50))
-        
-        # On ground status
-        ground_text = font.render(f"On Ground: {self.player.on_ground}", True, WHITE)
-        self.screen.blit(ground_text, (10, 90))
-        
-        # Jump count
-        jump_text = font.render(f"Jumps Used: {self.player.jump_count}/{self.player.max_jumps}", True, WHITE)
-        self.screen.blit(jump_text, (10, 130))
-        
-        # Character info
-        char_text = font.render(f"Theme: {THEMES[self.character_config['theme']]['name']}", True, WHITE)
-        self.screen.blit(char_text, (10, 170))
-        
-        # Controls
-        controls_text = font.render("Controls: Arrow Keys/WASD to move, Space/Up to jump", True, WHITE)
-        self.screen.blit(controls_text, (10, SCREEN_HEIGHT - 40))
-        
-        esc_text = font.render("Press ESC to return to character select", True, WHITE)
-        self.screen.blit(esc_text, (10, SCREEN_HEIGHT - 80))
     
     def run(self):
         """Main game loop"""
