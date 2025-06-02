@@ -127,7 +127,7 @@ class Game:
         self.camera.update(self.player.rect)
     
     def create_large_level(self):
-        """Create a large level with multiple paths and easier jumps"""
+        """Create a simplified level with only basic platforms for easier AI learning"""
         theme = THEMES[self.character_config['theme']]
         
         # Ground platform spans the entire bottom (this is deadly!)
@@ -136,6 +136,7 @@ class Game:
         self.all_sprites.add(ground)
         
         # Create multiple paths with easier jumps (max 120 pixel gaps, 80-100 pixel height differences)
+        # SIMPLIFIED: Only basic platforms for AI learning
         platforms_data = [
             # Starting area - multiple ways up
             (150, WORLD_HEIGHT - 180, 250, 25),   # First safe platform
@@ -178,7 +179,7 @@ class Game:
             # Upper convergence
             (2200, WORLD_HEIGHT - 1500, 300, 25),  # Another meeting point
             
-            # Some moving/interesting platforms
+            # Final section - more basic platforms
             (2600, WORLD_HEIGHT - 1650, 150, 25),
             (2950, WORLD_HEIGHT - 1800, 140, 25),
             (3300, WORLD_HEIGHT - 1950, 160, 25),
@@ -199,7 +200,7 @@ class Game:
             (6400, WORLD_HEIGHT - 3300, 300, 30),  # Victory platform (bigger!)
         ]
         
-        # Create all platforms
+        # Create all platforms as basic Platform objects
         for x, y, width, height in platforms_data:
             platform = Platform(x, y, width, height, theme)
             self.platforms.add(platform)
@@ -220,113 +221,121 @@ class Game:
         # Create victory zone at top-right (bigger and more forgiving)
         self.victory_zone = pygame.Rect(6350, WORLD_HEIGHT - 3400, 400, 150)
         
-        # Add PHASE 3: Moving Platforms (Horizontal) - REDUCED for less clutter
-        moving_platforms_data = [
-            # Early game - just a few to introduce the concept
-            (800, WORLD_HEIGHT - 350, 120, 25, 1000, 80),   # First one to see
-            (1600, WORLD_HEIGHT - 650, 80, 25, 1850, 60),   # Second example
-            
-            # Mid-section - spaced out nicely
-            (2800, WORLD_HEIGHT - 1100, 120, 25, 3100, 45),
-            (4000, WORLD_HEIGHT - 1800, 80, 25, 4250, 70),
-            
-            # Upper area - final challenging ones
-            (5200, WORLD_HEIGHT - 2400, 85, 25, 5500, 50),
-            (6000, WORLD_HEIGHT - 3000, 95, 25, 6300, 60),  # Near end
-        ]
+        # =======================================
+        # SPECIAL PLATFORMS - TEMPORARILY COMMENTED OUT FOR BASIC AI LEARNING
+        # Uncomment these sections when AI masters basic movement
+        # =======================================
         
-        for start_x, y, width, height, end_x, speed in moving_platforms_data:
-            moving_platform = MovingPlatform(start_x, y, width, height, end_x, speed, theme)
-            self.platforms.add(moving_platform)
-            self.all_sprites.add(moving_platform)
+        # # Add PHASE 3: Moving Platforms (Horizontal) - REDUCED for less clutter
+        # moving_platforms_data = [
+        #     # Early game - just a few to introduce the concept
+        #     (800, WORLD_HEIGHT - 350, 120, 25, 1000, 80),   # First one to see
+        #     (1600, WORLD_HEIGHT - 650, 80, 25, 1850, 60),   # Second example
+        #     
+        #     # Mid-section - spaced out nicely
+        #     (2800, WORLD_HEIGHT - 1100, 120, 25, 3100, 45),
+        #     (4000, WORLD_HEIGHT - 1800, 80, 25, 4250, 70),
+        #     
+        #     # Upper area - final challenging ones
+        #     (5200, WORLD_HEIGHT - 2400, 85, 25, 5500, 50),
+        #     (6000, WORLD_HEIGHT - 3000, 95, 25, 6300, 60),  # Near end
+        # ]
+        # 
+        # for start_x, y, width, height, end_x, speed in moving_platforms_data:
+        #     moving_platform = MovingPlatform(start_x, y, width, height, end_x, speed, theme)
+        #     self.platforms.add(moving_platform)
+        #     self.all_sprites.add(moving_platform)
         
-        # Add PHASE 3: Disappearing Platforms - REDUCED for less clutter
-        disappearing_platforms_data = [
-            # Just 2 key disappearing platforms for the mechanic
-            (1800, WORLD_HEIGHT - 1000, 90, 25, 4.0),  # Early introduction
-            (4200, WORLD_HEIGHT - 2100, 80, 25, 3.0),  # Late game challenge
-        ]
+        # # Add PHASE 3: Disappearing Platforms - REDUCED for less clutter
+        # disappearing_platforms_data = [
+        #     # Just 2 key disappearing platforms for the mechanic
+        #     (1800, WORLD_HEIGHT - 1000, 90, 25, 4.0),  # Early introduction
+        #     (4200, WORLD_HEIGHT - 2100, 80, 25, 3.0),  # Late game challenge
+        # ]
+        # 
+        # for x, y, width, height, disappear_time in disappearing_platforms_data:
+        #     disappearing_platform = DisappearingPlatform(x, y, width, height, theme, disappear_time)
+        #     self.platforms.add(disappearing_platform)
+        #     self.all_sprites.add(disappearing_platform)
         
-        for x, y, width, height, disappear_time in disappearing_platforms_data:
-            disappearing_platform = DisappearingPlatform(x, y, width, height, theme, disappear_time)
-            self.platforms.add(disappearing_platform)
-            self.all_sprites.add(disappearing_platform)
+        # # Add PHASE 3: Jump Boost Power-ups - REDUCED for less clutter
+        # jump_boost_locations = [
+        #     # Just 2 strategic power-ups
+        #     (1600, WORLD_HEIGHT - 1200), # Mid-level boost
+        #     (4500, WORLD_HEIGHT - 2500), # Before final areas
+        # ]
+        # 
+        # for x, y in jump_boost_locations:
+        #     jump_boost = PowerUp(x, y, "jump_boost", theme)
+        #     self.powerups.add(jump_boost)
+        #     self.all_sprites.add(jump_boost)
         
-        # Add PHASE 3: Jump Boost Power-ups - REDUCED for less clutter
-        jump_boost_locations = [
-            # Just 2 strategic power-ups
-            (1600, WORLD_HEIGHT - 1200), # Mid-level boost
-            (4500, WORLD_HEIGHT - 2500), # Before final areas
-        ]
+        # # Add PHASE 3.1: Vertical Moving Platforms (Elevators) - REDUCED
+        # vertical_platforms_data = [
+        #     # Just a few key elevators
+        #     (1500, WORLD_HEIGHT - 900, 90, 25, WORLD_HEIGHT - 1200, 45, 2.0),
+        #     (3000, WORLD_HEIGHT - 1500, 100, 25, WORLD_HEIGHT - 1900, 50, 2.0),
+        #     (5000, WORLD_HEIGHT - 2600, 90, 25, WORLD_HEIGHT - 3000, 60, 1.5),
+        # ]
+        # 
+        # for x, start_y, width, height, end_y, speed, wait_time in vertical_platforms_data:
+        #     vertical_platform = TeleporterElevator(x, start_y, width, height, end_y, speed, wait_time, theme)
+        #     self.platforms.add(vertical_platform)
+        #     self.all_sprites.add(vertical_platform)
         
-        for x, y in jump_boost_locations:
-            jump_boost = PowerUp(x, y, "jump_boost", theme)
-            self.powerups.add(jump_boost)
-            self.all_sprites.add(jump_boost)
+        # # Add PHASE 3.2: Rotating Platforms - REDUCED
+        # rotating_platforms_data = [
+        #     # Just 3 rotating platforms for variety
+        #     (1300, WORLD_HEIGHT - 700, 25, 30),   # Early
+        #     (2900, WORLD_HEIGHT - 1400, 28, 45),  # Mid
+        #     (4400, WORLD_HEIGHT - 2300, 25, 60),  # Late
+        # ]
+        # 
+        # for x, y, radius, rotation_speed in rotating_platforms_data:
+        #     rotating_platform = RotatingPlatform(x, y, radius, rotation_speed, theme)
+        #     self.platforms.add(rotating_platform)
+        #     self.all_sprites.add(rotating_platform)
         
-        # Add PHASE 3.1: Vertical Moving Platforms (Elevators) - REDUCED
-        vertical_platforms_data = [
-            # Just a few key elevators
-            (1500, WORLD_HEIGHT - 900, 90, 25, WORLD_HEIGHT - 1200, 45, 2.0),
-            (3000, WORLD_HEIGHT - 1500, 100, 25, WORLD_HEIGHT - 1900, 50, 2.0),
-            (5000, WORLD_HEIGHT - 2600, 90, 25, WORLD_HEIGHT - 3000, 60, 1.5),
-        ]
+        # # Add PHASE 3.3: One-Way Platforms - REDUCED
+        # oneway_platforms_data = [
+        #     # Strategic placement - just a few
+        #     (1100, WORLD_HEIGHT - 600, 100, 20),
+        #     (2700, WORLD_HEIGHT - 1300, 110, 20),
+        #     (4600, WORLD_HEIGHT - 2400, 100, 20),
+        # ]
+        # 
+        # for x, y, width, height in oneway_platforms_data:
+        #     oneway_platform = OneWayPlatform(x, y, width, height, theme)
+        #     self.platforms.add(oneway_platform)
+        #     self.all_sprites.add(oneway_platform)
         
-        for x, start_y, width, height, end_y, speed, wait_time in vertical_platforms_data:
-            vertical_platform = TeleporterElevator(x, start_y, width, height, end_y, speed, wait_time, theme)
-            self.platforms.add(vertical_platform)
-            self.all_sprites.add(vertical_platform)
+        # # Add PHASE 3.4: Bouncy Platforms - REDUCED
+        # bouncy_platforms_data = [
+        #     # Just a few bouncy ones
+        #     (1250, WORLD_HEIGHT - 750, 90, 25, 1.8),
+        #     (3100, WORLD_HEIGHT - 1550, 80, 25, 2.0),
+        #     (5100, WORLD_HEIGHT - 2650, 85, 25, 1.9),
+        # ]
+        # 
+        # for x, y, width, height, bounce_strength in bouncy_platforms_data:
+        #     bouncy_platform = BouncyPlatform(x, y, width, height, bounce_strength, theme)
+        #     self.platforms.add(bouncy_platform)
+        #     self.all_sprites.add(bouncy_platform)
         
-        # Add PHASE 3.2: Rotating Platforms - REDUCED
-        rotating_platforms_data = [
-            # Just 3 rotating platforms for variety
-            (1300, WORLD_HEIGHT - 700, 25, 30),   # Early
-            (2900, WORLD_HEIGHT - 1400, 28, 45),  # Mid
-            (4400, WORLD_HEIGHT - 2300, 25, 60),  # Late
-        ]
+        # # Add PHASE 3.5: Ice Platforms - REDUCED
+        # ice_platforms_data = [
+        #     # Just 2 ice challenges
+        #     (2500, WORLD_HEIGHT - 1250, 140, 25),
+        #     (4300, WORLD_HEIGHT - 2150, 110, 25),
+        # ]
+        # 
+        # for x, y, width, height in ice_platforms_data:
+        #     ice_platform = IcePlatform(x, y, width, height, theme)
+        #     self.platforms.add(ice_platform)
+        #     self.all_sprites.add(ice_platform)
         
-        for x, y, radius, rotation_speed in rotating_platforms_data:
-            rotating_platform = RotatingPlatform(x, y, radius, rotation_speed, theme)
-            self.platforms.add(rotating_platform)
-            self.all_sprites.add(rotating_platform)
-        
-        # Add PHASE 3.3: One-Way Platforms - REDUCED
-        oneway_platforms_data = [
-            # Strategic placement - just a few
-            (1100, WORLD_HEIGHT - 600, 100, 20),
-            (2700, WORLD_HEIGHT - 1300, 110, 20),
-            (4600, WORLD_HEIGHT - 2400, 100, 20),
-        ]
-        
-        for x, y, width, height in oneway_platforms_data:
-            oneway_platform = OneWayPlatform(x, y, width, height, theme)
-            self.platforms.add(oneway_platform)
-            self.all_sprites.add(oneway_platform)
-        
-        # Add PHASE 3.4: Bouncy Platforms - REDUCED
-        bouncy_platforms_data = [
-            # Just a few bouncy ones
-            (1250, WORLD_HEIGHT - 750, 90, 25, 1.8),
-            (3100, WORLD_HEIGHT - 1550, 80, 25, 2.0),
-            (5100, WORLD_HEIGHT - 2650, 85, 25, 1.9),
-        ]
-        
-        for x, y, width, height, bounce_strength in bouncy_platforms_data:
-            bouncy_platform = BouncyPlatform(x, y, width, height, bounce_strength, theme)
-            self.platforms.add(bouncy_platform)
-            self.all_sprites.add(bouncy_platform)
-        
-        # Add PHASE 3.5: Ice Platforms - REDUCED
-        ice_platforms_data = [
-            # Just 2 ice challenges
-            (2500, WORLD_HEIGHT - 1250, 140, 25),
-            (4300, WORLD_HEIGHT - 2150, 110, 25),
-        ]
-        
-        for x, y, width, height in ice_platforms_data:
-            ice_platform = IcePlatform(x, y, width, height, theme)
-            self.platforms.add(ice_platform)
-            self.all_sprites.add(ice_platform)
+        print("🎯 Created simplified level with basic platforms only for AI learning!")
+        print("💡 Special platforms are commented out - uncomment them when AI masters basics!")
     
     def handle_input(self):
         """Handle input based on current game state"""
@@ -443,19 +452,20 @@ class Game:
                     if not self.player.rect.colliderect(platform.rect):
                         platform.remove_rider()  # Remove rider if no longer touching
             
-            # Update power-ups
-            for powerup in self.powerups:
-                powerup.update(dt)
-            
-            # Check power-up collection
-            collected_powerups = pygame.sprite.spritecollide(self.player, self.powerups, False)
-            for powerup in collected_powerups:
-                if not powerup.collected:
-                    powerup.collect()
-                    if powerup.powerup_type == "jump_boost":
-                        self.player.add_powerup("jump_boost", 10.0)  # 10-second jump boost
-                    self.powerups.remove(powerup)
-                    self.all_sprites.remove(powerup)
+            # TEMPORARILY COMMENTED OUT: Power-up collection logic (uncomment when adding power-ups back)
+            # # Update power-ups
+            # for powerup in self.powerups:
+            #     powerup.update(dt)
+            # 
+            # # Check power-up collection
+            # collected_powerups = pygame.sprite.spritecollide(self.player, self.powerups, False)
+            # for powerup in collected_powerups:
+            #     if not powerup.collected:
+            #         powerup.collect()
+            #         if powerup.powerup_type == "jump_boost":
+            #             self.player.add_powerup("jump_boost", 10.0)  # 10-second jump boost
+            #         self.powerups.remove(powerup)
+            #         self.all_sprites.remove(powerup)
             
             # Update camera
             self.camera.update(self.player.rect)
