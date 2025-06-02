@@ -5,6 +5,7 @@ import json
 import os
 from settings import *
 from player import Player
+from powerups import PowerUp
 
 class LearningAI:
     """Learning AI that gets smarter over time by remembering what works"""
@@ -15,61 +16,57 @@ class LearningAI:
         self.powerups = powerups
         self.victory_zone = victory_zone
         
-        # Learning memory
-        self.success_memory = {}  # position -> successful action
-        self.failure_memory = {}  # position -> list of failed actions
-        self.action_history = []  # For tracking action sequences
+        # Learning memory system
+        self.success_memory = {}  # position -> {action: success_count}
+        self.failure_memory = {}  # position -> {action: failure_count}
         
         # Emotional memory system
-        self.positive_reinforcement = {}  # action -> positive feeling strength (0-10)
-        self.negative_reinforcement = {}  # action -> negative feeling strength (0-10)
-        self.recent_progress_feeling = 0  # -10 to +10, how AI feels about recent progress
+        self.positive_reinforcement = {}  # action -> positive feeling score
+        self.negative_reinforcement = {}  # action -> negative feeling score
+        self.recent_progress_feeling = 0  # -10 (very bad) to +10 (very good)
         
         # Personal Best (PB) System
-        self.personal_best_distance = 200  # Starting position as initial PB
-        self.pb_route = []  # List of (position_key, action) that led to PB
-        self.pb_recovery_mode = False  # Whether AI is trying to get back to PB
-        self.pb_route_index = 0  # Current step in PB recovery route
+        self.personal_best_distance = 0  # Furthest distance reached
+        self.pb_route = []  # List of actions that led to PB
+        self.pb_recovery_mode = False  # Are we trying to get back to PB?
+        self.pb_route_index = 0  # Where we are in replaying the PB route
+        self.manual_pb_override = False  # Manual override to force PB recovery
         
-        # Performance tracking
-        self.attempt_count = 0
-        self.victories = 0
-        self.current_distance = 200  # Track furthest rightward progress
-        self.best_distance = 200
-        self.consecutive_failures = 0
-        
-        # State tracking
-        self.stuck_timer = 0.0
-        self.last_x = self.player.rect.x
-        self.learning_active = True
-        self.jump_cooldown = 0.0
-        
-        # Auto-save counter
-        self.actions_since_save = 0
-        
-        # Game knowledge
+        # Game knowledge and position tracking
         self.game_knowledge = {
-            "goal": "Reach the victory zone at (6400, WORLD_HEIGHT - 3300)",
-            "death_condition": "Touching the bottom ground platform",
-            "victory_condition": "Player rect collides with victory zone",
-            "movement": "Arrow keys or WASD for left/right movement",
-            "double_jump": "Spacebar for jumping, can double-jump in air",
-            "platform_types": {
-                "normal": "Standard platforms (brown/themed)",
-                "moving": "Blue platforms that slide horizontally",
-                "bouncy": "Orange platforms that boost jump height",
-                "disappearing": "Flash red and fade when stepped on",
-                "oneway": "Yellow platforms - jump through from below",
-                "ice": "Light blue slippery platforms with low friction",
-                "rotating": "Purple circular platforms that spin",
-                "elevator": "Green platforms that move vertically and teleport rider"
+            "goal": "reach victory zone at (6400, WORLD_HEIGHT - 3300)",
+            "rule_1": "ALWAYS MOVE RIGHT TO WIN - right = progress toward victory",
+            "rule_2": "UP+RIGHT movement is BEST - gets closer to top-right victory zone",
+            "rule_3": "avoid falling to ground (WORLD_HEIGHT - GROUND_HEIGHT) = death",
+            "rule_4": "victory zone is TOP-RIGHT corner of world",
+            "platforms": {
+                "normal": "regular platforms for standing/jumping",
+                "moving_blue": "blue bordered platforms that slide back and forth",
+                "bouncy_orange": "orange platforms give extra jump height", 
+                "disappearing": "platforms that fade away after being stepped on",
+                "oneway_yellow": "yellow platforms can be jumped through from below",
+                "ice_light_blue": "light blue slippery platforms with reduced friction",
+                "rotating_purple": "purple circular platforms that slowly rotate",
+                "elevator_green": "green platforms that move up and down automatically"
             },
             "powerups": {
-                "jump_boost": "Green crystals - 50% higher jumps for 10 seconds"
+                "jump_boost": "green crystals give temporary higher jumps for 10 seconds"
             }
         }
         
-        # Load previous learning data
+        # Statistics
+        self.attempts = 0
+        self.victories = 0
+        self.total_deaths = 0
+        self.learning_active = True
+        
+        # Decision tracking
+        self.last_position = None
+        self.last_action = None
+        self.stuck_timer = 0.0
+        self.last_distance = 0
+        
+        # Try to load existing learning data
         self.load_learning_data()
         
         # Print tutorial for the AI
@@ -87,13 +84,13 @@ class LearningAI:
         print("   Moving UP = Vertical progress toward victory") 
         print("   You need BOTH rightward AND upward movement!")
         print("   Moving LEFT or DOWN = Away from victory = SADNESS!")
-        print(f"💀 DEATH: {self.game_knowledge['death_condition']}")
-        print(f"🏆 VICTORY: {self.game_knowledge['victory_condition']}")
-        print(f"🎮 MOVEMENT: {self.game_knowledge['movement']}")
-        print(f"⬆️ JUMPING: {self.game_knowledge['double_jump']}")
+        print(f"💀 DEATH: {self.game_knowledge['rule_3']}")
+        print(f"🏆 VICTORY: {self.game_knowledge['rule_4']}")
+        print(f"🎮 MOVEMENT: {self.game_knowledge['rule_1']}")
+        print(f"⬆️ JUMPING: {self.game_knowledge['rule_2']}")
         
         print("\n📋 PLATFORM TYPES:")
-        for platform_type, description in self.game_knowledge['platform_types'].items():
+        for platform_type, description in self.game_knowledge['platforms'].items():
             print(f"  • {platform_type.upper()}: {description}")
         
         print("\n💎 POWER-UPS:")
@@ -159,17 +156,23 @@ class LearningAI:
     
     def remember_success(self, position_key, action):
         """Remember that this action worked at this position"""
-        self.success_memory[str(position_key)] = action
+        pos_str = str(position_key)
+        if pos_str not in self.success_memory:
+            self.success_memory[pos_str] = {}
+        if action not in self.success_memory[pos_str]:
+            self.success_memory[pos_str][action] = 0
+        self.success_memory[pos_str][action] += 1
         print(f"✅ Learned: {action} works at position {position_key}")
     
     def remember_failure(self, position_key, action):
         """Remember that this action failed at this position"""
         pos_str = str(position_key)
         if pos_str not in self.failure_memory:
-            self.failure_memory[pos_str] = []
+            self.failure_memory[pos_str] = {}
         if action not in self.failure_memory[pos_str]:
-            self.failure_memory[pos_str].append(action)
-            print(f"❌ Learned: {action} fails at position {position_key}")
+            self.failure_memory[pos_str][action] = 0
+        self.failure_memory[pos_str][action] += 1
+        print(f"❌ Learned: {action} fails at position {position_key}")
     
     def get_learned_action(self, position_key):
         """Get the learned successful action for this position, if any"""
@@ -179,49 +182,107 @@ class LearningAI:
     def is_action_known_failure(self, position_key, action):
         """Check if this action is known to fail at this position"""
         pos_str = str(position_key)
-        failed_actions = self.failure_memory.get(pos_str, [])
+        failed_actions = self.failure_memory.get(pos_str, {})
         return action in failed_actions
     
     def update(self, dt):
-        """Update learning AI logic with emotional processing"""
+        """Update AI learning and control"""
         if not self.learning_active:
             return
-            
-        self.jump_cooldown = max(0, self.jump_cooldown - dt)
+        
+        # Update personal best tracking
+        self.update_personal_best()
+        
+        # Track emotional state for decision making
+        anger_level = max(0, -self.recent_progress_feeling)  # 0 to 10, higher = more angry
+        happiness_level = max(0, self.recent_progress_feeling)  # 0 to 10, higher = more happy
+        
+        # Log emotional state periodically
+        if self.attempts % 5 == 0 and self.attempts > 0:
+            if anger_level > 3:
+                print(f"😤 AI Emotional State: ANGRY ({anger_level:.1f}/10)")
+            elif happiness_level > 3:
+                print(f"😊 AI Emotional State: HAPPY ({happiness_level:.1f}/10)")
+            else:
+                print(f"😐 AI Emotional State: NEUTRAL (feeling: {self.recent_progress_feeling:.1f})")
+        
+        # Make smart decision based on new logic
+        chosen_action = self.make_smart_decision()
+        
+        # Create keys dictionary and apply the chosen action
+        keys = {
+            pygame.K_LEFT: False, 
+            pygame.K_RIGHT: False, 
+            pygame.K_a: False,
+            pygame.K_d: False,
+            pygame.K_SPACE: False,
+            pygame.K_UP: False,
+            pygame.K_w: False
+        }
+        
+        self.apply_action(keys, chosen_action)
+        
+        # CRITICAL: Actually apply the keys to the player
+        self.player.handle_input(keys)
+        
+        # Update player (this handles collision with platforms)
+        self.player.update(self.platforms)
         
         # Track progress and emotional state
-        old_distance = self.current_distance
-        self.current_distance = max(self.current_distance, self.player.rect.centerx)
+        old_distance = self.last_distance
+        self.last_distance = self.player.rect.centerx
         
         # Feel EXTRA good about rightward progress!
-        if self.current_distance > old_distance:
-            progress_amount = self.current_distance - old_distance
+        if self.last_distance > old_distance:
+            progress_amount = self.last_distance - old_distance
             if progress_amount > 20:  # Significant progress
                 # Double happiness for rightward progress!
                 happiness_intensity = min(5, progress_amount / 20)
                 self.feel_emotion("rightward_progress", happiness_intensity)
-                self.consecutive_failures = 0
                 
                 # Remember the last action that led to this progress as EXTRA good
-                if len(self.action_history) > 0:
-                    last_pos, last_action, _ = self.action_history[-1]
-                    if "right" in last_action:
-                        self.feel_emotion("success", 2, last_action)  # Extra boost for rightward success
+                if self.last_action:
+                    self.feel_emotion("success", 2, self.last_action)  # Extra boost for rightward success
         
         # Check if stuck and feel bad about it
-        if abs(self.player.rect.x - self.last_x) < 3:
+        if self.last_position and abs(self.player.rect.x - self.last_position[0]) < 3:
             self.stuck_timer += dt
             if self.stuck_timer > 3.0:  # Feel frustrated when stuck
                 self.feel_emotion("stuck", 1)
         else:
             self.stuck_timer = 0.0
-            self.last_x = self.player.rect.x
+            self.last_position = (self.player.rect.x, self.player.rect.y)
         
-        # Make intelligent movement decision
-        self.make_smart_decision()
+        # Update moving platforms and other dynamic elements
+        for platform in self.platforms:
+            platform.update(dt)
         
-        # Decay emotions over time (don't hold grudges forever)
-        self.recent_progress_feeling *= 0.999
+        # Update power-ups
+        for powerup in self.powerups:
+            powerup.update(dt)
+        
+        # Check for power-up collection
+        collected = pygame.sprite.spritecollide(self.player, self.powerups, False)
+        for powerup in collected:
+            if not powerup.collected:
+                powerup.collect()
+                if powerup.powerup_type == "jump_boost":
+                    self.player.add_powerup("jump_boost", 10.0)
+                self.powerups.remove(powerup)
+        
+        # Check for death/victory
+        if self.player.rect.bottom >= WORLD_HEIGHT - GROUND_HEIGHT:
+            self.on_death()
+        elif self.victory_zone.colliderect(self.player.rect):
+            self.on_victory()
+        
+        # Count attempts when we actually make decisions
+        if chosen_action != "wait":  # Only count when we actually made a decision
+            self.attempts += 1
+        
+        # Auto-save every 10 attempts
+        if self.attempts % 10 == 0 and self.attempts > 0:
+            self.save_learning_data()
     
     def update_personal_best(self):
         """Update personal best distance and remember the route to get there"""
@@ -231,11 +292,15 @@ class LearningAI:
             old_pb = self.personal_best_distance
             self.personal_best_distance = current_x
             
-            # Save the successful route to this new PB!
-            self.pb_route = self.action_history.copy()
+            # FIXED: pb_route should be a list, not a single action
+            # For now, we'll build up the route over time rather than storing just the last action
+            if self.last_action:
+                # Add current action to the growing route
+                current_pos = self.get_position_key()
+                self.pb_route.append((current_pos, self.last_action, current_x))
             
             print(f"🏆 NEW PERSONAL BEST! Distance: {current_x:.0f} (was {old_pb:.0f})")
-            print(f"📝 Remembered route with {len(self.pb_route)} actions to reach PB!")
+            print(f"📝 Route now has {len(self.pb_route)} steps to reach PB!")
             
             # Feel AMAZING about setting a new PB
             self.feel_emotion("success", 5)
@@ -245,31 +310,30 @@ class LearningAI:
             self.pb_route_index = 0
             
             return True
+        else:
+            # Still building route - add current action to route
+            if self.last_action:
+                current_pos = self.get_position_key()
+                self.pb_route.append((current_pos, self.last_action, current_x))
         
         return False
     
     def should_use_pb_recovery(self):
-        """Determine if AI should try to recover to its PB using memory"""
+        """Determine if AI should try to get back to its Personal Best (MORE RESTRICTIVE)"""
         current_x = self.player.rect.centerx
         
-        # Use PB recovery ONLY in more extreme situations - not as primary strategy!
-        # 1. We're VERY far behind our PB (more than 200 pixels)
-        # 2. We have a route to remember
-        # 3. We're REALLY struggling (many failures AND bad feelings AND stuck)
-        
+        # More restrictive conditions for PB recovery
         very_far_behind = current_x < (self.personal_best_distance - 200)  # Increased threshold
         has_route = len(self.pb_route) > 0
-        really_struggling = (self.consecutive_failures > 5 and  # More failures required
-                           self.recent_progress_feeling < -4 and  # More negative feelings required
-                           self.stuck_timer > 4.0)  # Longer stuck time required
+        really_struggling = (self.stuck_timer > 4.0)  # Longer stuck time required
         
         # Add some randomness - don't always use PB recovery even when conditions are met
-        random_exploration = random.random() < 0.3  # 30% chance to explore instead
+        random_factor = random.random() < 0.6  # Only 60% chance when conditions are met
         
-        should_recover = very_far_behind and has_route and really_struggling and not random_exploration
+        should_recover = (very_far_behind and has_route and really_struggling and random_factor)
         
         if should_recover:
-            print(f"🆘 AI is REALLY struggling (far behind: {very_far_behind}, failures: {self.consecutive_failures}, feeling: {self.recent_progress_feeling:.1f}) - considering PB recovery")
+            print(f"🆘 AI is REALLY struggling (far behind: {very_far_behind}, feeling: {self.recent_progress_feeling:.1f}) - considering PB recovery")
         
         return should_recover
     
@@ -303,7 +367,7 @@ class LearningAI:
             current_grid_x, current_grid_y, _, _ = current_pos
             
             # Allow some flexibility in position matching
-            if (abs(route_grid_x - current_grid_x) <= 3 and  # More flexibility
+            if (abs(route_grid_x - current_grid_x) <= 3 and 
                 abs(route_grid_y - current_grid_y) <= 3):
                 route_action = route_action_for_pos
                 self.pb_route_index = i + 1
@@ -331,14 +395,14 @@ class LearningAI:
         
         # Reduce exploration based on knowledge gained
         knowledge_factor = len(self.success_memory) * 2  # Each success reduces exploration
-        attempt_factor = self.attempt_count * 0.5  # Each attempt reduces exploration slightly
+        attempt_factor = self.attempts * 0.5  # Each attempt reduces exploration slightly
         
         # Calculate current exploration rate
         current_exploration = max(15, base_exploration - knowledge_factor - attempt_factor)
         
         # If AI is struggling (low success rate), increase exploration temporarily
-        if self.attempt_count > 5:
-            success_rate = (self.victories / self.attempt_count) * 100
+        if self.attempts > 5:
+            success_rate = (self.victories / self.attempts) * 100
             if success_rate < 10:  # If very low success rate, boost exploration
                 current_exploration = min(60, current_exploration + 20)
         
@@ -376,101 +440,86 @@ class LearningAI:
         return combined_progress * 100
     
     def make_smart_decision(self):
-        """Enhanced decision making with dynamic exploration and UP+RIGHT awareness"""
-        # Update Personal Best if we've gone further
-        new_pb = self.update_personal_best()
+        """Enhanced decision making: Mad = stick to PB route, Happy = explore new paths"""
+        if not self.learning_active:
+            return "wait"
         
-        # If we just set a new PB, feel extra good about exploration!
-        if new_pb:
-            self.feel_emotion("success", 3)
-            print("🎉 New PB set - AI feels GREAT about exploring!")
-        
-        # Check if we should enter PB recovery mode (more restrictive now)
-        if not self.pb_recovery_mode and self.should_use_pb_recovery():
-            self.pb_recovery_mode = True
-            self.pb_route_index = 0
-            print(f"🔄 ENTERING PB RECOVERY MODE - trying to get back to {self.personal_best_distance:.0f}")
-            self.feel_emotion("success", 1)  # Feel good about having a plan
-        
-        # Exit PB recovery mode if we've reached our PB area OR if we're making good progress exploring
-        if self.pb_recovery_mode:
-            if self.is_at_pb_location():
-                self.pb_recovery_mode = False
-                self.pb_route_index = 0
-                print(f"🎯 REACHED PB AREA - resuming exploration from {self.player.rect.centerx:.0f}")
-                self.feel_emotion("success", 3)  # Feel great about getting back to PB
-            elif self.recent_progress_feeling > 0:  # If feeling good, exit recovery and explore
-                self.pb_recovery_mode = False
-                self.pb_route_index = 0
-                print(f"😊 AI feeling good - exiting PB recovery to explore!")
-                self.feel_emotion("success", 1)
-        
-        # Get current position for learning
         position_key = self.get_position_key()
+        current_x = self.player.rect.centerx
         
-        # Calculate dynamic exploration rate
-        exploration_rate = self.get_dynamic_exploration_rate()
+        # Calculate emotional state for decision making
+        anger_level = max(0, -self.recent_progress_feeling)  # 0 to 10, higher = more angry
+        happiness_level = max(0, self.recent_progress_feeling)  # 0 to 10, higher = more happy
         
-        # Decide on action with DYNAMIC EXPLORATION PRIORITY
-        chosen_action = None
+        # Are we at or near our Personal Best location?
+        at_pb_location = current_x >= (self.personal_best_distance - 100)
+        far_from_pb = current_x < (self.personal_best_distance - 300)
         
-        # PRIORITY 1: Dynamic exploration (starts high, decreases with learning)
-        exploration_chance = exploration_rate / 100
-        if random.random() < exploration_chance:
-            chosen_action = self.choose_exploration_action(position_key)
-            print(f"🎲 Dynamic exploration ({exploration_rate:.1f}%): {chosen_action}")
+        # MANUAL OVERRIDE SYSTEM - Force PB recovery when requested
+        if self.manual_pb_override:
+            if len(self.pb_route) > 0:
+                if not self.pb_recovery_mode:
+                    self.pb_recovery_mode = True
+                    self.pb_route_index = 0
+                    print(f"🎯 MANUAL OVERRIDE: Starting PB recovery to {self.personal_best_distance:.0f}")
+                
+                recovery_action = self.try_pb_recovery()
+                if recovery_action:
+                    print(f"🎯 MANUAL OVERRIDE: Following PB route - {recovery_action}")
+                    return recovery_action
+                else:
+                    # Reached end of PB route or got stuck
+                    self.manual_pb_override = False
+                    self.pb_recovery_mode = False
+                    print("🎯 MANUAL OVERRIDE COMPLETE: Now at PB location")
+            else:
+                # No PB route available, disable override
+                self.manual_pb_override = False
+                print("❌ Manual override disabled - no PB route to follow")
         
-        # PRIORITY 2: Use learned successful action for this position (increasing chance as we learn)
-        exploitation_chance = min(0.8, 0.3 + (len(self.success_memory) * 0.01))  # Starts at 30%, increases with knowledge
-        if not chosen_action and random.random() < exploitation_chance:
-            learned_action = self.get_learned_action(position_key)
-            if learned_action:
-                chosen_action = learned_action
-                print(f"🧠 Using learned action ({exploitation_chance*100:.1f}% chance): {chosen_action}")
+        # NEW LOGIC: MAD = stick to PB route, HAPPY = explore
         
-        # PRIORITY 3: PB Recovery (only as fallback when really struggling)
-        if not chosen_action and self.pb_recovery_mode:
-            pb_action = self.try_pb_recovery()
-            if pb_action:
-                chosen_action = pb_action
-                print(f"🔄 PB Recovery: Using {chosen_action}")
+        # ANGRY/FRUSTRATED AI - Stick to what worked before!
+        if anger_level > 4:  # Moderately frustrated or worse
+            if len(self.pb_route) > 0 and far_from_pb:
+                if not self.pb_recovery_mode:
+                    self.pb_recovery_mode = True
+                    self.pb_route_index = 0
+                    print(f"😤 AI IS FRUSTRATED (anger: {anger_level:.1f}) - Going back to reliable PB route!")
+                
+                recovery_action = self.try_pb_recovery()
+                if recovery_action:
+                    print(f"😤 FRUSTRATED: Following proven route - {recovery_action}")
+                    return recovery_action
+                else:
+                    # Finished PB route, now explore carefully
+                    self.pb_recovery_mode = False
+                    print(f"😤 Reached PB via route, now exploring carefully (anger: {anger_level:.1f})")
+            else:
+                print(f"😤 AI frustrated (anger: {anger_level:.1f}) but no good route to follow")
         
-        # PRIORITY 4: Smart exploration (UP+RIGHT bias + emotions)
-        if not chosen_action:
-            chosen_action = self.choose_exploration_action(position_key)
+        # HAPPY/SUCCESSFUL AI - Explore new possibilities!
+        elif happiness_level > 3 or at_pb_location:
+            # Disable any PB recovery mode - we're feeling good!
+            if self.pb_recovery_mode:
+                self.pb_recovery_mode = False
+                print(f"😊 AI feeling good (happiness: {happiness_level:.1f}) - disabling PB recovery")
+            
+            # At PB location or feeling happy = maximum exploration!
+            if at_pb_location:
+                print(f"🎉 AI at/near PB location - MAXIMUM EXPLORATION to find new paths!")
+                return self.choose_exploration_action(position_key, exploration_boost=0.8)  # 80% exploration
+            else:
+                print(f"😊 AI feeling happy (happiness: {happiness_level:.1f}) - exploring with confidence!")
+                return self.choose_exploration_action(position_key, exploration_boost=0.4)  # 40% exploration
         
-        # Create keys dictionary and apply the chosen action
-        keys = {
-            pygame.K_LEFT: False, 
-            pygame.K_RIGHT: False, 
-            pygame.K_a: False,
-            pygame.K_d: False,
-            pygame.K_SPACE: False,
-            pygame.K_UP: False,
-            pygame.K_w: False
-        }
-        
-        self.apply_action(keys, chosen_action)
-        
-        # CRITICAL FIX: Actually apply the keys to the player!
-        self.player.handle_input(keys)
-        
-        # Remember this action in our history
-        timestamp = self.attempt_count * 1000 + len(self.action_history)
-        self.action_history.append((position_key, chosen_action, timestamp))
-        
-        # Limit action history size to prevent memory bloat
-        if len(self.action_history) > 500:  # Keep last 500 actions
-            self.action_history = self.action_history[-400:]  # Trim to 400
-        
-        # Auto-save every 10 actions
-        self.actions_since_save += 1
-        if self.actions_since_save >= 10:
-            self.save_learning_data()
-            self.actions_since_save = 0
+        # NEUTRAL AI - Balanced approach
+        else:
+            print(f"😐 AI feeling neutral - balanced exploration")
+            return self.choose_exploration_action(position_key, exploration_boost=0.2)  # 20% exploration
     
-    def choose_exploration_action(self, position_key):
-        """Choose an action using logic and emotional learning with UP+RIGHT bias"""
+    def choose_exploration_action(self, position_key, exploration_boost=0.2):
+        """Choose an action using logic and emotional learning with UP+RIGHT bias and exploration boost"""
         possible_actions = ["move_right", "move_left", "jump_right", "jump_left", "jump_only", "wait"]
         
         # Filter out known failures
@@ -480,233 +529,178 @@ class LearningAI:
         if not safe_actions:
             safe_actions = ["jump_right", "jump_only"]  # Always try jumping if everything else failed
         
-        # PRIORITY SYSTEM: UP+RIGHT actions get massive preference!
-        upward_rightward_actions = [a for a in safe_actions if "jump" in a and "right" in a]  # Best: up AND right
-        rightward_actions = [a for a in safe_actions if "right" in a]  # Good: rightward
-        upward_actions = [a for a in safe_actions if "jump" in a]  # OK: upward
-        leftward_actions = [a for a in safe_actions if "left" in a]  # Bad: leftward  
-        neutral_actions = [a for a in safe_actions if a in ["wait"]]  # Neutral
-        
-        # EMOTIONAL ACTION SELECTION - STRONGLY prefer actions that felt good!
-        def get_emotional_score(action):
-            positive_feeling = self.positive_reinforcement.get(action, 0)
-            negative_feeling = self.negative_reinforcement.get(action, 0)
-            emotional_score = positive_feeling - negative_feeling
-            
-            # MASSIVE bonuses for UP+RIGHT movement!
-            if "jump" in action and "right" in action:
-                emotional_score += 5  # +5 bonus for UP+RIGHT actions!
-            elif "right" in action:
-                emotional_score += 3  # +3 bonus for rightward actions
-            elif "jump" in action:
-                emotional_score += 2  # +2 bonus for upward actions
-            elif "left" in action:
-                emotional_score -= 2  # -2 penalty for leftward actions
-                
-            return emotional_score
-        
-        # Sort all actions by emotional preference
-        all_actions_with_scores = [(action, get_emotional_score(action)) for action in safe_actions]
-        all_actions_with_scores.sort(key=lambda x: x[1], reverse=True)  # Sort by score descending
-        
-        # Use the action with highest emotional score if it's positive
-        best_action, best_score = all_actions_with_scores[0]
-        if best_score > 2:  # If we have a strongly positive emotional association
-            print(f"💭 AI chooses {best_action} based on STRONG POSITIVE FEELINGS (score: {best_score})")
-            return best_action
-        
-        # LOGICAL ACTION SELECTION with UP+RIGHT PRIORITY and DYNAMIC EXPLORATION
-        
-        # Get progress toward victory to inform decisions
-        progress_score = self.get_position_progress_score()
-        victory_x = self.victory_zone.centerx
-        victory_y = self.victory_zone.centery
-        
-        # ALWAYS prefer UP+RIGHT movement when possible!
-        if upward_rightward_actions:
-            if random.random() < 0.8:  # 80% chance to choose UP+RIGHT when available
-                chosen = random.choice(upward_rightward_actions)
-                print(f"🚀 AI chooses {chosen} - UP AND RIGHT toward victory!")
-                return chosen
-        
-        # If not near victory zone, prioritize getting closer (UP+RIGHT)
-        if self.player.rect.centerx < victory_x * 0.8 or self.player.rect.centery > victory_y * 1.2:
-            # Prefer rightward movement if far horizontally
-            if self.player.rect.centerx < victory_x * 0.8 and rightward_actions:
-                if self.player.on_ground and "move_right" in rightward_actions and random.random() < 0.6:
-                    print(f"🎯 AI chooses move_right - GOING TOWARD VICTORY!")
-                    return "move_right"
-                elif "jump_right" in rightward_actions:
-                    print(f"🎯 AI chooses jump_right - UP AND RIGHT!")
-                    return "jump_right"
-            
-            # Prefer upward movement if low vertically
-            if self.player.rect.centery > victory_y * 1.2 and upward_actions:
-                upward_action = random.choice(upward_actions)
-                print(f"⬆️ AI chooses {upward_action} - GOING UP toward victory!")
-                return upward_action
-        
-        # EXPLORATION BOOST: Sometimes try random UP+RIGHT actions
+        # EXPLORATION MODE - Use the exploration boost to determine randomness level
         exploration_rate = self.get_dynamic_exploration_rate()
-        if random.random() < (exploration_rate / 100) * 0.5:  # Scale with exploration rate
-            if upward_rightward_actions:
-                chosen = random.choice(upward_rightward_actions)
-                print(f"🔍 EXPLORATION: Trying {chosen} to discover UP+RIGHT paths!")
-                return chosen
-            elif rightward_actions:
-                chosen = random.choice(rightward_actions)
-                print(f"🔍 EXPLORATION: Trying {chosen} to discover rightward paths!")
-                return chosen
+        total_exploration_chance = min(0.9, (exploration_rate / 100) + exploration_boost)
         
-        # If feeling frustrated, try aggressive UP+RIGHT actions
-        if self.recent_progress_feeling < -3 or self.stuck_timer > 2.0:
-            if upward_rightward_actions:
-                aggressive_action = random.choice(upward_rightward_actions)
-                print(f"😡 AI frustrated, trying aggressive UP+RIGHT: {aggressive_action}")
-                return aggressive_action
-            elif upward_actions:
-                aggressive_action = random.choice(upward_actions)
-                print(f"😡 AI frustrated, trying aggressive UPWARD: {aggressive_action}")
-                return aggressive_action
+        if random.random() < total_exploration_chance:
+            # EXPLORATION: Try random actions, heavily biased toward UP+RIGHT
+            upright_actions = [a for a in safe_actions if "right" in a or "jump" in a]
+            
+            if upright_actions and random.random() < 0.7:  # 70% chance for UP+RIGHT bias
+                chosen_action = random.choice(upright_actions)
+                print(f"🎲 EXPLORING (boost: {exploration_boost:.1f}): Trying UP+RIGHT action: {chosen_action}")
+            else:
+                # Sometimes try other actions for variety
+                chosen_action = random.choice(safe_actions)
+                print(f"🎲 EXPLORING (boost: {exploration_boost:.1f}): Trying action: {chosen_action}")
+            
+            return chosen_action
         
-        # If we're in the air, still prefer rightward movement when falling
-        if not self.player.on_ground:
-            if "move_right" in safe_actions and self.player.vel_y > 0:  # Falling
-                print(f"🪂 AI chooses move_right while falling - TOWARD VICTORY!")
-                return "move_right"
-            elif "wait" in safe_actions:
-                return "wait"  # Don't interfere with landing
+        # LEARNED BEHAVIOR: Use emotional intelligence and knowledge
+        learned_actions = self.get_learned_action(position_key)
         
-        # If we haven't made much progress, encourage UP+RIGHT exploration
-        if progress_score < 20:  # Still early in the game
-            if upward_rightward_actions:
-                chosen = random.choice(upward_rightward_actions)
-                print(f"🚀 AI early game - {chosen} toward victory!")
-                return chosen
-            elif rightward_actions:
-                chosen = random.choice(rightward_actions)
-                print(f"🚀 AI early game - {chosen} toward victory!")
-                return chosen
+        if learned_actions:
+            # Use emotional scoring to pick the best learned action
+            def get_emotional_score(action):
+                positive_score = self.positive_reinforcement.get(action, 0)
+                negative_score = self.negative_reinforcement.get(action, 0)
+                learned_success_count = learned_actions.get(action, 0)
+                
+                # Base score from learning
+                base_score = learned_success_count * 10
+                
+                # Emotional modifiers
+                emotional_modifier = positive_score - negative_score
+                
+                # STRONG UP+RIGHT bias - extra points for good directions
+                direction_bonus = 0
+                if "right" in action and "jump" in action:
+                    direction_bonus = 50  # UP+RIGHT = best!
+                elif "right" in action:
+                    direction_bonus = 30  # RIGHT = good
+                elif "jump" in action:
+                    direction_bonus = 20  # UP = decent
+                elif "left" in action:
+                    direction_bonus = -20  # LEFT = bad direction
+                
+                total_score = base_score + emotional_modifier + direction_bonus
+                return total_score
+            
+            # Find the best action based on emotional learning
+            best_action = None
+            best_score = float('-inf')
+            
+            for action in learned_actions:
+                if action in safe_actions:  # Only consider safe actions
+                    score = get_emotional_score(action)
+                    if score > best_score:
+                        best_score = score
+                        best_action = action
+            
+            if best_action:
+                print(f"🧠 LEARNED BEHAVIOR: Using proven action: {best_action} (score: {best_score:.1f})")
+                return best_action
         
-        # Priority order: UP+RIGHT > RIGHT > UP > NEUTRAL > LEFT
-        if upward_rightward_actions:
-            chosen = random.choice(upward_rightward_actions)
-            print(f"🎯 AI defaults to UP+RIGHT: {chosen}")
-            return chosen
-        elif rightward_actions:
-            chosen = random.choice(rightward_actions)
-            print(f"🎯 AI defaults to rightward: {chosen}")
-            return chosen
-        elif upward_actions:
-            chosen = random.choice(upward_actions)
-            print(f"⬆️ AI defaults to upward: {chosen}")
-            return chosen
-        elif neutral_actions:
-            return random.choice(neutral_actions)
+        # FALLBACK: No learned behavior, prefer UP+RIGHT actions
+        upright_actions = [a for a in safe_actions if "right" in a or "jump" in a]
+        if upright_actions:
+            chosen_action = random.choice(upright_actions)
+            print(f"⬆️➡️ FALLBACK: Choosing UP+RIGHT action: {chosen_action}")
         else:
-            # Only use leftward as absolute last resort
-            chosen = random.choice(leftward_actions) if leftward_actions else random.choice(safe_actions)
-            print(f"😞 AI reluctantly chooses: {chosen} (no UP+RIGHT options)")
-            return chosen
+            chosen_action = random.choice(safe_actions)
+            print(f"🤷 FALLBACK: Random safe action: {chosen_action}")
+        
+        return chosen_action
     
     def apply_action(self, keys, action):
-        """Apply the chosen action to the key inputs"""
+        """Apply an action to the keys dictionary"""
         if action == "move_right":
             keys[pygame.K_RIGHT] = True
             keys[pygame.K_d] = True
         elif action == "move_left":
             keys[pygame.K_LEFT] = True
             keys[pygame.K_a] = True
-        elif action == "jump_right" and self.jump_cooldown <= 0:
+        elif action == "jump_right":
             keys[pygame.K_RIGHT] = True
             keys[pygame.K_d] = True
             keys[pygame.K_SPACE] = True
             keys[pygame.K_UP] = True
             keys[pygame.K_w] = True
-            self.jump_cooldown = 0.8
-        elif action == "jump_left" and self.jump_cooldown <= 0:
+        elif action == "jump_left":
             keys[pygame.K_LEFT] = True
             keys[pygame.K_a] = True
             keys[pygame.K_SPACE] = True
             keys[pygame.K_UP] = True
             keys[pygame.K_w] = True
-            self.jump_cooldown = 0.8
-        elif action == "jump_only" and self.jump_cooldown <= 0:
+        elif action == "jump_only":
             keys[pygame.K_SPACE] = True
             keys[pygame.K_UP] = True
             keys[pygame.K_w] = True
-            self.jump_cooldown = 0.8
         # "wait" does nothing - no keys pressed
     
     def on_death(self):
         """Called when AI dies - strong negative emotional learning"""
-        self.attempt_count += 1
-        self.consecutive_failures += 1
+        self.attempts += 1
+        self.total_deaths += 1
         
         # Feel REALLY bad about dying
-        death_feeling_intensity = min(8, 3 + self.consecutive_failures)
+        death_feeling_intensity = min(8, 3 + self.total_deaths)
         self.feel_emotion("failure", death_feeling_intensity)
         
-        # Update best distance if improved
-        if self.current_distance > self.best_distance:
-            self.best_distance = self.current_distance
-            print(f"🚀 NEW RECORD! Reached distance: {self.current_distance}")
+        # Check if we made progress (FIXED LOGIC)
+        if self.last_distance > self.personal_best_distance:
+            old_personal_best = self.personal_best_distance  # Save old value BEFORE updating
+            self.personal_best_distance = self.last_distance  # Update to new best
+            print(f"🚀 NEW RECORD! Reached distance: {self.last_distance}")
             
-            # Feel GREAT about making progress!
-            progress_feeling = min(8, (self.current_distance - self.best_distance) / 100)
+            # Feel GREAT about making progress! (Use old value for calculation)
+            progress_feeling = min(8, (self.last_distance - old_personal_best) / 100)
             self.feel_emotion("success", progress_feeling)
             
             # When we make progress, reinforce more of the successful sequence
-            success_count = min(5, len(self.action_history) // 2)
+            success_count = min(5, len(self.pb_route) // 2)
             for i in range(success_count):
-                if len(self.action_history) > i:
-                    pos, action, _ = self.action_history[-(i+1)]
+                if len(self.pb_route) > i:
+                    # pb_route contains (position, action, distance) tuples
+                    pos, action, distance = self.pb_route[-(i+1)]  # Get from the end (most recent)
                     self.remember_success(pos, action)
                     self.feel_emotion("success", 1, action)  # Feel good about this action
         
         # Learn from failure - last few actions probably caused death
-        failure_count = min(3, len(self.action_history))
+        failure_count = min(3, len(self.pb_route))
         for i in range(failure_count):
-            if len(self.action_history) > i:
-                pos, action, _ = self.action_history[-(i+1)]
+            if len(self.pb_route) > i:
+                # pb_route contains (position, action, distance) tuples
+                pos, action, distance = self.pb_route[-(i+1)]  # Get from the end (most recent)
                 self.remember_failure(pos, action)
                 # Feel BAD about actions that led to death
                 bad_feeling_intensity = 3 - i  # Earlier actions feel less bad
                 self.feel_emotion("failure", bad_feeling_intensity, action)
         
-        print(f"💀 Attempt #{self.attempt_count} ended. Distance: {self.current_distance}")
+        print(f"💀 Attempt #{self.attempts} ended. Distance: {self.last_distance}")
         print(f"🧠 Knowledge: {len(self.success_memory)} successes, {len(self.failure_memory)} failures")
         print(f"😊 Current mood: {self.recent_progress_feeling:.1f}/10")
         
         # Auto-save learning every 10 attempts
-        if self.attempt_count % 10 == 0:
+        if self.attempts % 10 == 0:
             self.save_learning_data()
-            print(f"💾 Auto-saved after {self.attempt_count} attempts")
+            print(f"💾 Auto-saved after {self.attempts} attempts")
         
         # Reset for next attempt
-        self.current_distance = 0
-        self.action_history = []
+        self.last_distance = 0
+        self.pb_route = []
         self.stuck_timer = 0.0
     
     def on_victory(self):
         """Called when AI reaches victory - MASSIVE positive emotional boost!"""
         self.victories += 1
-        self.attempt_count += 1
-        self.consecutive_failures = 0
+        self.attempts += 1
+        self.total_deaths = 0
         
-        print(f"🏆 VICTORY #{self.victories}! Attempt #{self.attempt_count}")
+        print(f"🏆 VICTORY #{self.victories}! Attempt #{self.attempts}")
         
         # Feel AMAZING about winning!
         self.feel_emotion("success", 10)  # Maximum positive feeling!
         
         # Learn from ALL actions in this successful attempt
-        for pos, action, _ in self.action_history:
+        for pos, action in self.pb_route:
             self.remember_success(pos, action)
             self.feel_emotion("success", 2, action)  # All actions in winning run feel good
         
         # Reset for next attempt
-        self.current_distance = 0
-        self.action_history = []
+        self.last_distance = 0
+        self.pb_route = []
         self.stuck_timer = 0.0
     
     def save_learning_data(self):
@@ -717,9 +711,9 @@ class LearningAI:
                 'failure_memory': self.failure_memory,
                 'positive_reinforcement': self.positive_reinforcement,
                 'negative_reinforcement': self.negative_reinforcement,
-                'attempt_count': self.attempt_count,
+                'attempts': self.attempts,
                 'victories': self.victories,
-                'best_distance': self.best_distance,
+                'total_deaths': self.total_deaths,
                 'personal_best_distance': self.personal_best_distance,
                 'pb_route': self.pb_route,  # Save the PB route!
                 'recent_progress_feeling': self.recent_progress_feeling
@@ -741,10 +735,10 @@ class LearningAI:
             self.failure_memory = data.get('failure_memory', {})
             self.positive_reinforcement = data.get('positive_reinforcement', {})
             self.negative_reinforcement = data.get('negative_reinforcement', {})
-            self.attempt_count = data.get('attempt_count', 0)
+            self.attempts = data.get('attempts', 0)
             self.victories = data.get('victories', 0)
-            self.best_distance = data.get('best_distance', 200)
-            self.personal_best_distance = data.get('personal_best_distance', 200)
+            self.total_deaths = data.get('total_deaths', 0)
+            self.personal_best_distance = data.get('personal_best_distance', 0)
             self.pb_route = data.get('pb_route', [])  # Load the PB route!
             self.recent_progress_feeling = data.get('recent_progress_feeling', 0)
             
@@ -760,16 +754,12 @@ class LearningAI:
         self.failure_memory.clear()
         self.positive_reinforcement.clear()
         self.negative_reinforcement.clear()
-        self.action_history.clear()
-        self.attempt_count = 0
-        self.victories = 0
-        self.best_distance = 200
-        self.personal_best_distance = 200  # Reset PB
-        self.pb_route.clear()  # Clear PB route
-        self.pb_recovery_mode = False
-        self.pb_route_index = 0
+        self.pb_route.clear()
+        self.personal_best_distance = 0
         self.recent_progress_feeling = 0
-        self.consecutive_failures = 0
+        self.attempts = 0
+        self.victories = 0
+        self.total_deaths = 0
         
         # Delete the save file
         try:
@@ -789,8 +779,8 @@ class LearningAI:
     
     def get_learning_stats(self):
         """Get learning statistics including PB information"""
-        if self.attempt_count > 0:
-            success_rate = (self.victories / self.attempt_count) * 100
+        if self.attempts > 0:
+            success_rate = (self.victories / self.attempts) * 100
         else:
             success_rate = 0.0
         
@@ -806,10 +796,10 @@ class LearningAI:
         exploration_rate = self.get_dynamic_exploration_rate()
         
         return {
-            'attempts': self.attempt_count,
+            'attempts': self.attempts,
             'victories': self.victories,
+            'total_deaths': self.total_deaths,
             'success_rate': success_rate,
-            'best_distance': self.best_distance,
             'personal_best': self.personal_best_distance,  # Include PB
             'pb_route_length': len(self.pb_route),  # Include route info
             'exploration_rate': exploration_rate,  # Now dynamic!
@@ -918,30 +908,34 @@ class DemoLevel:
                 platform.activated = False
     
     def handle_controls(self, keys_just_pressed):
-        """Handle learning control inputs"""
-        if self.button_cooldown > 0:
-            return
-        
-        # S key: Save learning data
+        """Handle manual learning controls"""
         if keys_just_pressed.get(pygame.K_s, False):
             self.ai.save_learning_data()
-            self.button_cooldown = 0.5
-        
-        # P key: Pause/Continue learning
+            print("💾 Learning data saved manually!")
+            
         elif keys_just_pressed.get(pygame.K_p, False):
             self.ai.toggle_learning()
-            self.button_cooldown = 0.5
-        
-        # E key: Erase all learning data
+            status = "ACTIVE" if self.ai.learning_active else "PAUSED"
+            print(f"🧠 Learning {status}")
+            
         elif keys_just_pressed.get(pygame.K_e, False):
             self.ai.erase_learning_data()
-            self.restart_attempt()
-            self.button_cooldown = 0.5
-        
-        # R key: Restart current attempt
+            print("🗑️ All learning data erased!")
+            
         elif keys_just_pressed.get(pygame.K_r, False):
+            # Restart current attempt
             self.restart_attempt()
-            self.button_cooldown = 0.5
+            print("🔄 Attempt restarted!")
+            
+        elif keys_just_pressed.get(pygame.K_b, False):
+            # Manual override - force AI to go to Personal Best
+            if self.ai.personal_best_distance > 0:
+                self.ai.manual_pb_override = True
+                self.ai.pb_recovery_mode = True
+                self.ai.pb_route_index = 0
+                print(f"🎯 MANUAL OVERRIDE: Forcing AI to go to Personal Best ({self.ai.personal_best_distance:.0f})")
+            else:
+                print("❌ No Personal Best recorded yet!")
     
     def draw_learning_ui(self):
         """Draw the learning AI status and controls"""
@@ -957,14 +951,42 @@ class DemoLevel:
         status_surface = self.font_large.render(status_text, True, status_color)
         self.screen.blit(status_surface, (20, 20))
         
-        # PB Recovery Mode indicator - NEW!
-        if stats['recovery_mode']:
-            recovery_text = f"🔄 PB RECOVERY MODE - Target: {stats['personal_best']:.0f}"
-            recovery_surface = self.font_medium.render(recovery_text, True, YELLOW)
-            self.screen.blit(recovery_surface, (20, 50))
-            y_offset = 80
+        # NEW: Emotional mode indicator
+        anger_level = max(0, -self.ai.recent_progress_feeling)
+        happiness_level = max(0, self.ai.recent_progress_feeling)
+        current_x = self.ai.player.rect.centerx
+        at_pb_location = current_x >= (self.ai.personal_best_distance - 100)
+        
+        # Determine AI mode based on emotional state
+        if self.ai.manual_pb_override:
+            mode_status = "🎯 MANUAL OVERRIDE: Following PB Route"
+            mode_color = YELLOW
+        elif anger_level > 4:
+            mode_status = f"😤 FRUSTRATED: Following reliable PB route (anger: {anger_level:.1f})"
+            mode_color = (255, 100, 100)  # Light red
+        elif happiness_level > 3 or at_pb_location:
+            if at_pb_location:
+                mode_status = f"🎉 AT PB: Maximum exploration for new paths!"
+                mode_color = (100, 255, 100)  # Bright green
+            else:
+                mode_status = f"😊 HAPPY: Confident exploration (happiness: {happiness_level:.1f})"
+                mode_color = (150, 255, 150)  # Light green
         else:
-            y_offset = 50
+            mode_status = f"😐 NEUTRAL: Balanced approach"
+            mode_color = WHITE
+        
+        # Display the mode
+        mode_surface = self.font_medium.render(mode_status, True, mode_color)
+        self.screen.blit(mode_surface, (20, 50))
+        
+        # PB Recovery Mode indicator - UPDATED
+        if stats['recovery_mode']:
+            recovery_text = f"🔄 PB RECOVERY ACTIVE - Target: {stats['personal_best']:.0f}"
+            recovery_surface = self.font_small.render(recovery_text, True, YELLOW)
+            self.screen.blit(recovery_surface, (20, 75))
+            y_offset = 100
+        else:
+            y_offset = 80
         
         # Left column - Performance stats
         left_x = 20
@@ -973,15 +995,15 @@ class DemoLevel:
             f"Attempt: #{stats['attempts'] + 1}",
             f"Victories: {stats['victories']}",
             f"Success Rate: {stats['success_rate']:.1f}%",
-            f"Best Distance: {stats['best_distance']:.0f}",
-            f"Personal Best: {stats['personal_best']:.0f} (Route: {stats['pb_route_length']} steps)"  # NEW!
+            f"Best Distance: {stats['personal_best']:.0f}",
+            f"Total Deaths: {stats['total_deaths']}"
         ]
         
         for i, text in enumerate(progress_texts):
             color = WHITE
-            # Highlight PB if it's higher than best distance
-            if "Personal Best" in text and stats['personal_best'] > stats['best_distance']:
-                color = YELLOW
+            # Highlight PB if it's improved recently (remove the impossible comparison)
+            if "Best Distance" in text and stats['personal_best'] > 0:
+                color = YELLOW  # Always highlight if we have a personal best
             
             rendered = self.font_small.render(text, True, color)
             self.screen.blit(rendered, (left_x, left_y + i * 25))
@@ -990,7 +1012,7 @@ class DemoLevel:
         right_x = SCREEN_WIDTH // 2 + 20
         right_y = y_offset + 5
         current_texts = [
-            f"Current Distance: {self.ai.current_distance:.0f}",
+            f"Current Distance: {self.ai.last_distance:.0f}",
             f"Known Positions: {stats['known_positions']}",
             f"Exploration: {stats['exploration_rate']:.1f}%",
             f"Positive Emotions: {stats['positive_associations']}",
@@ -1080,25 +1102,25 @@ class DemoLevel:
             rendered = self.font_small.render(progress_text, True, progress_color)
             self.screen.blit(rendered, (progress_x, progress_y + progress_height + 5))
         
-        # Controls - bottom of screen
-        controls_y = SCREEN_HEIGHT - 120
-        controls = [
-            "Controls:",
-            "P: Toggle Learning ON/OFF",
-            "S: Save Learning Data", 
+        # Learning controls
+        control_instructions = [
+            "Learning Controls:",
+            "S: Save Learning Data",
+            "P: Pause/Resume Learning", 
             "E: Erase All Learning Data",
             "R: Restart Current Attempt",
+            "B: Force Go to Personal Best",
             "ESC: Exit Demo"
         ]
         
-        for i, control in enumerate(controls):
-            color = YELLOW if i == 0 else WHITE
-            if i == 0:
-                font = self.font_medium
-            else:
-                font = self.font_small
-            rendered = font.render(control, True, color)
-            self.screen.blit(rendered, (20, controls_y + i * 20))
+        for i, instruction in enumerate(control_instructions):
+            color = WHITE if i > 0 else self.theme['glow_color']
+            if i == 0:  # Title
+                text = self.font_medium.render(instruction, True, color)
+            else:  # Instructions
+                text = self.font_small.render(instruction, True, color)
+            y_pos = SCREEN_HEIGHT - 180 + (i * 20)
+            self.screen.blit(text, (20, y_pos))
     
     def draw_background(self):
         """Draw themed background"""

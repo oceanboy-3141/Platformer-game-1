@@ -370,20 +370,29 @@ class Game:
             # Check if character selection is complete
             keys_just_pressed = self.get_keys_just_pressed()
             if self.character_select.handle_input(self.keys_pressed, keys_just_pressed):
+                print("Character selection complete!")
                 self.character_config = self.character_select.get_character_config()
+                print(f"Character config: {self.character_config}")
                 
                 # Check if demo was requested
                 if self.character_config.get('start_demo', False):
+                    print("Demo mode requested - initializing...")
                     # Initialize game world first for demo to copy
                     self.init_game_world()
+                    print("Game world initialized, creating DemoLevel...")
                     self.demo_level = DemoLevel(self.screen, self.character_config, self)
+                    print("DemoLevel created successfully!")
                     self.state = GAME_STATE_DEMO
                 # Check if tutorial was requested
                 elif self.character_config.get('start_tutorial', False):
+                    print("Tutorial mode requested - initializing...")
                     self.tutorial_level = TutorialLevel(self.screen, self.character_config)
+                    print("Tutorial created successfully!")
                     self.state = GAME_STATE_TUTORIAL
                 else:
+                    print("Normal gameplay mode - initializing...")
                     self.init_game_world()
+                    print("Game world initialized successfully!")
                     self.state = GAME_STATE_PLAYING
                 
         elif self.state == GAME_STATE_TUTORIAL:
