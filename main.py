@@ -411,13 +411,11 @@ class Game:
                 if self.demo_level.should_exit(keys_just_pressed):
                     self.state = GAME_STATE_CHARACTER_SELECT
                 elif self.demo_level.should_restart(keys_just_pressed):
-                    # Restart demo
-                    self.init_game_world()
-                    self.demo_level = DemoLevel(self.screen, self.character_config, self)
+                    # Learning AI handles its own restarts through controls
+                    pass
                 elif self.demo_level.is_complete():
-                    # Demo completed, restart automatically
-                    self.init_game_world()
-                    self.demo_level = DemoLevel(self.screen, self.character_config, self)
+                    # Demo completed, restart automatically (this won't happen with learning AI)
+                    pass
                 
         elif self.state == GAME_STATE_PLAYING:
             # Handle player input
