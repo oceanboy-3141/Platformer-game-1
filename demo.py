@@ -177,40 +177,29 @@ class LearningAI:
     
     def get_position_key(self):
         """Simplified position key for basic platform learning"""
-        # Grid position (30px resolution)
-        grid_x = int(self.player.rect.centerx // 30)
-        grid_y = int(self.player.rect.centery // 30)
+        # Much larger grid position (100px resolution instead of 30px) for better learning
+        grid_x = int(self.player.rect.centerx // 100)  # Changed from 30 to 100
+        grid_y = int(self.player.rect.centery // 100)  # Changed from 30 to 100
         
-        # Velocity context (quantized for manageable state space)
+        # Simplified velocity context
         vel_x_quantized = "still"
-        if self.player.vel_x > 1:
+        if self.player.vel_x > 2:  # Increased threshold
             vel_x_quantized = "moving_right"
-        elif self.player.vel_x < -1:
+        elif self.player.vel_x < -2:  # Increased threshold
             vel_x_quantized = "moving_left"
         
-        # Enhanced vertical motion representation
-        vertical_motion = 0  # -1 for falling, 1 for rising, 0 for near-zero
-        if self.player.vel_y > 5:  # Falling threshold
-            vertical_motion = -1
-        elif self.player.vel_y < -5:  # Rising threshold
-            vertical_motion = 1
+        # Simplified vertical motion (only 3 states instead of many)
+        vertical_motion = "falling" if self.player.vel_y > 8 else "rising" if self.player.vel_y < -8 else "stable"
         
-        # Ground state
+        # Ground state (most important!)
         ground_state = "on_ground" if self.player.on_ground else "in_air"
         
-        # TEMPORARILY COMMENTED OUT: Power-up status and platform context for simplified learning
-        # # Power-up status (boolean flag for jump boost)
-        # has_jump_boost = self.player.has_powerup("jump_boost")
-        # 
-        # # Nearby platform context (simplified)
-        # platform_context = self.get_nearby_platform_context()
+        # Simplified relative position to victory (much broader categories)
+        victory_distance = abs(self.player.rect.centerx - 1200) // 200  # Changed from 100 to 200
+        victory_distance = min(victory_distance, 10)  # Cap at 10 instead of 50
         
-        # Relative position to victory (simplified)
-        victory_distance = abs(self.player.rect.centerx - self.victory_zone.centerx) // 100
-        victory_distance = min(victory_distance, 50)  # Cap at 50 to limit state space
-        
+        # Much simpler state representation for faster learning
         return f"{grid_x}_{grid_y}_{ground_state}_{vel_x_quantized}_{vertical_motion}_{victory_distance}"
-        # FULL VERSION: return f"{grid_x}_{grid_y}_{ground_state}_{vel_x_quantized}_{vertical_motion}_{has_jump_boost}_{platform_context}_{victory_distance}"
     
     def get_nearby_platform_context(self):
         """Get simplified context about nearby platforms"""
@@ -316,8 +305,8 @@ class LearningAI:
         # Calculate success rate
         success_rate = successes / total_attempts if total_attempts > 0 else 0
         
-        # Confidence increases with more attempts (but caps out)
-        attempt_confidence = min(1.0, total_attempts / 10)  # Full confidence at 10+ attempts
+        # Build confidence much faster - lower threshold for full confidence
+        attempt_confidence = min(1.0, total_attempts / 3)  # Full confidence at just 3 attempts instead of 10
         
         # Combined confidence: success rate weighted by how much data we have
         confidence = success_rate * attempt_confidence
@@ -384,7 +373,7 @@ class LearningAI:
     
     def get_learned_action(self, position_key):
         """Get the best known action for this position"""
-        safe_actions = ["move_right", "jump_only", "up_right", "wait"]
+        safe_actions = ["move_right", "jump_only", "jump_right", "wait"]
         
         best_action = None
         best_confidence = 0.0
@@ -393,7 +382,7 @@ class LearningAI:
             key = (position_key, action)
             if key in self.success_memory and self.success_memory[key] > 0:
                 confidence = self.get_action_confidence(position_key, action)
-                if confidence > best_confidence and confidence > 0.3:  # Require reasonable confidence
+                if confidence > best_confidence and confidence > 0.15:  # Much lower threshold (was 0.3)
                     best_confidence = confidence
                     best_action = action
         
@@ -532,17 +521,10 @@ class LearningAI:
                     self.player.add_powerup("jump_boost", 10.0)
                 self.powerups.remove(powerup)
         
-        # Check for death/victory
-        if self.player.rect.bottom >= WORLD_HEIGHT - GROUND_HEIGHT:
-            self.on_death()
-        elif self.victory_zone.colliderect(self.player.rect):
-            self.on_victory()
+        # NOTE: Death/victory checking is handled by DemoLevel to avoid double counting
+        # The DemoLevel will call self.on_death() and self.on_victory() when appropriate
         
-        # Count attempts when we actually make decisions
-        if chosen_action != "wait":  # Only count when we actually made a decision
-            self.attempts += 1
-        
-        # Auto-save every 10 attempts
+        # Auto-save every 10 attempts (but don't increment attempts here!)
         if self.attempts % 10 == 0 and self.attempts > 0:
             self.save_learning_data()
     
@@ -737,7 +719,7 @@ class LearningAI:
     
     def get_dynamic_exploration_rate(self):
         """Calculate dynamic exploration rate based on progress and distance from PB"""
-        base_rate = 10  # Even lower base rate for more consistent learned behavior
+        base_rate = 5  # Much lower base rate (was 10) for more learned behavior
         
         # Distance-based exploration - get MORE exploratory as we approach PB
         current_distance = self.player.rect.centerx
@@ -745,18 +727,18 @@ class LearningAI:
         
         # Adjusted for ultra-simple level - even smaller distance thresholds
         if distance_from_pb < 15:  # Very close to PB (was 25)
-            distance_bonus = 50  # Very jittery near PB
+            distance_bonus = 30  # Reduced jittery behavior (was 50)
         elif distance_from_pb < 40:  # Near PB (was 75)
-            distance_bonus = 30  # Moderately jittery approaching PB
+            distance_bonus = 20  # Reduced exploration (was 30)
         elif distance_from_pb < 80:  # Somewhat close to PB (was 150)
-            distance_bonus = 15  # Some exploration
+            distance_bonus = 10  # Minimal exploration (was 15)
         else:  # Far from PB
-            distance_bonus = 5   # Minimal exploration - focus on learning efficient path
+            distance_bonus = 2   # Almost no exploration - use learned behavior (was 5)
         
-        # Time-based reduction - but much less aggressive
-        time_factor = max(0.8, 1.0 - (self.attempts * 0.01))  # Even slower reduction
+        # Aggressive time-based reduction to force learning
+        time_factor = max(0.5, 1.0 - (self.attempts * 0.03))  # Much faster reduction
         
-        final_rate = min(75, (base_rate + distance_bonus) * time_factor)  # Lower cap at 75%
+        final_rate = min(50, (base_rate + distance_bonus) * time_factor)  # Much lower cap at 50%
         return final_rate
     
     def is_making_good_progress(self):
@@ -1077,7 +1059,7 @@ class LearningAI:
     
     def on_death(self):
         """Called when AI dies - enhanced with temporal learning"""
-        self.attempts += 1
+        # Don't count attempts here - let DemoLevel handle that
         self.total_deaths += 1
         
         # Feel REALLY bad about dying
@@ -1132,13 +1114,6 @@ class LearningAI:
                     bad_feeling_intensity = 3 - i  # Earlier actions feel less bad
                     self.feel_emotion("failure", bad_feeling_intensity, action)
         
-        # Reset position for new attempt
-        self.player.rect.x = 200  # Start position
-        self.player.rect.y = WORLD_HEIGHT - 180 - PLAYER_HEIGHT - 5
-        self.player.vel_x = 0
-        self.player.vel_y = 0
-        self.player.on_ground = False
-        
         # Clear recent actions on death
         self.recent_actions = []
         
@@ -1151,7 +1126,7 @@ class LearningAI:
     def on_victory(self):
         """Called when AI reaches victory - MASSIVE positive emotional boost!"""
         self.victories += 1
-        self.attempts += 1
+        # Don't count attempts here - let DemoLevel handle that
         self.total_deaths = 0
         
         print(f"🏆 VICTORY #{self.victories}! Attempt #{self.attempts}")
@@ -1164,7 +1139,7 @@ class LearningAI:
             self.remember_success(pos, action)
             self.feel_emotion("success", 2, action)  # All actions in winning run feel good
         
-        # Reset for next attempt
+        # Reset for next attempt (but don't reset player position - DemoLevel handles that)
         self.last_distance = 0
         self.pb_route = []
         self.stuck_timer = 0.0
@@ -1356,6 +1331,9 @@ class DemoLevel:
         self.demo_timer = 0.0
         self.attempt_timer = 0.0
         
+        # Safety flag to prevent double counting attempts
+        self.attempt_counted = False
+        
         # UI elements
         self.font_large = pygame.font.Font(None, 36)
         self.font_medium = pygame.font.Font(None, 28)
@@ -1401,30 +1379,40 @@ class DemoLevel:
         
         # Check for victory
         if self.victory_zone.colliderect(self.player.rect):
-            self.ai.on_victory()
-            self.restart_attempt()
+            if not self.attempt_counted:  # Safety check
+                self.ai.attempts += 1  # Count the completed attempt
+                self.ai.on_victory()
+                self.attempt_counted = True  # Mark attempt as counted
+                self.restart_attempt()
         
         # Check for death (restart learning attempt)
         elif self.player.rect.bottom >= WORLD_HEIGHT - GROUND_HEIGHT:
-            self.ai.on_death()
-            self.restart_attempt()
+            if not self.attempt_counted:  # Safety check
+                self.ai.attempts += 1  # Count the completed attempt
+                self.ai.on_death()
+                self.attempt_counted = True  # Mark attempt as counted
+                self.restart_attempt()
     
     def restart_attempt(self):
-        """Restart the AI for a new learning attempt"""
-        # Reset player position
-        self.player.rect.x = 200
-        self.player.rect.y = WORLD_HEIGHT - 200
+        """Restart the learning attempt"""
+        # Reset attempt counting flag for new attempt
+        self.attempt_counted = False
+        
+        # Reset player position to start
+        self.player.rect.x = 200  # Starting x position  
+        self.player.rect.y = WORLD_HEIGHT - 200  # Starting y position
+        
+        # Reset player physics
         self.player.vel_x = 0
         self.player.vel_y = 0
         self.player.on_ground = False
-        self.attempt_timer = 0.0
+        self.player.jump_count = 0
         
-        # Reset platforms to initial state
-        for platform in self.platforms:
-            if hasattr(platform, 'is_solid'):
-                platform.is_solid = True
-            if hasattr(platform, 'activated'):
-                platform.activated = False
+        # Clear power-ups
+        self.player.active_powerups.clear()
+        
+        # Reset attempt timer for this run
+        self.attempt_timer = 0.0
     
     def handle_controls(self, keys_just_pressed):
         """Handle manual learning controls"""
@@ -1528,7 +1516,7 @@ class DemoLevel:
         left_x = 20
         left_y = y_offset + 5
         progress_texts = [
-            f"Attempt: #{stats['attempts'] + 1}",
+            f"Attempt: #{stats['attempts']}",
             f"Victories: {stats['victories']}",
             f"Success Rate: {stats['success_rate']:.1f}%",
             f"Best Distance: {stats['personal_best']:.0f}",
