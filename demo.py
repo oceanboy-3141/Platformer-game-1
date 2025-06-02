@@ -267,6 +267,9 @@ class LearningAI:
         key = (position_key, action)
         self.success_memory[key] = self.success_memory.get(key, 0) + 1
         
+        # Track this action attempt
+        self.track_action_attempt(position_key, action)
+        
         # Track progress efficiency
         if hasattr(self, 'last_distance') and hasattr(self, 'last_meaningful_progress_distance'):
             progress_made = self.last_distance - getattr(self, 'action_start_distance', self.last_meaningful_progress_distance)
@@ -330,6 +333,9 @@ class LearningAI:
         
         if attempts == 0:
             return float('inf')  # Unvisited actions get highest priority
+        
+        if total_state_visits == 0:
+            return float('inf')  # Avoid division by zero
         
         # Calculate average reward (success rate)
         average_reward = successes / attempts
@@ -807,62 +813,66 @@ class LearningAI:
         if not self.learning_active:
             return "wait"
         
-        # MANUAL OVERRIDE SYSTEM - Force PB recovery when requested
-        if self.manual_pb_override:
-            if len(self.pb_route) > 0:
-                if not self.pb_recovery_mode:
-                    self.pb_recovery_mode = True
-                    self.pb_route_index = 0
-                    print(f"🎯 MANUAL OVERRIDE: Starting PB recovery to {self.personal_best_distance:.0f}")
-                
-                recovery_action = self.try_pb_recovery()
-                if recovery_action:
-                    print(f"🎯 MANUAL OVERRIDE: Following PB route - {recovery_action}")
-                    return recovery_action
-                else:
-                    # Reached end of PB route or got stuck
-                    self.manual_pb_override = False
-                    self.pb_recovery_mode = False
-                    print("🎯 MANUAL OVERRIDE COMPLETE: Now at PB location")
-            else:
-                # No PB route available, disable override
-                self.manual_pb_override = False
-                print("❌ Manual override disabled - no PB route to follow")
+        # EXPERIMENT: COMMENTING OUT MANUAL PB OVERRIDE SYSTEM FOR TESTING
+        # =================================================================
+        # # MANUAL OVERRIDE SYSTEM - Force PB recovery when requested
+        # if self.manual_pb_override:
+        #     if len(self.pb_route) > 0:
+        #         if not self.pb_recovery_mode:
+        #             self.pb_recovery_mode = True
+        #             self.pb_route_index = 0
+        #             print(f"🎯 MANUAL OVERRIDE: Starting PB recovery to {self.personal_best_distance:.0f}")
+        #         
+        #         recovery_action = self.try_pb_recovery()
+        #         if recovery_action:
+        #             print(f"🎯 MANUAL OVERRIDE: Following PB route - {recovery_action}")
+        #             return recovery_action
+        #         else:
+        #             # Reached end of PB route or got stuck
+        #             self.manual_pb_override = False
+        #             self.pb_recovery_mode = False
+        #             print("🎯 MANUAL OVERRIDE COMPLETE: Now at PB location")
+        #     else:
+        #         # No PB route available, disable override
+        #         self.manual_pb_override = False
+        #         print("❌ Manual override disabled - no PB route to follow")
         
         # NEW LOGIC: MAD = stick to PB route, HAPPY = explore
         
-        # ANGRY/FRUSTRATED AI - Stick to what worked before, unless catastrophically stuck!
-        if anger_level > 4:  # Moderately frustrated or worse
-            # DESPERATION / STUCK OVERRIDE for extreme anger
-            if self.stuck_timer > 5.0 and anger_level >= 9.0:  # Thresholds for being very stuck and very angry
-                print(f"😡 DESPERATION MODE: anger {anger_level:.1f}, stuck {self.stuck_timer:.1f}s")
-                self.pb_recovery_mode = False  # Ensure we are not in PB recovery mode
-                self.manual_pb_override = False  # Turn off manual override too, if it was active
-                self.recent_progress_feeling = max(-10, self.recent_progress_feeling + 2)  # Slightly reduce anger to allow trying something new
-                self.stuck_timer = 0.0  # Reset stuck timer as we are taking a new approach
-                # Aggressively explore, trying to break the pattern.
-                chosen_action = self.choose_exploration_action(position_key, exploration_boost=0.95)  # Very high exploration
-                self.last_action = chosen_action  # Record this desperation action
-                # print(f"😡 Desperation action: {chosen_action}")
-                return chosen_action
-            
-            # If not in desperation mode, proceed with normal angry logic
-            if len(self.pb_route) > 0 and far_from_pb:
-                if not self.pb_recovery_mode:
-                    self.pb_recovery_mode = True
-                    self.pb_route_index = 0
-                    print(f"😤 FRUSTRATED - Starting PB recovery (anger: {anger_level:.1f})")
-                
-                recovery_action = self.try_pb_recovery()
-                if recovery_action:
-                    # print(f"😤 FRUSTRATED: Following proven route - {recovery_action}")
-                    return recovery_action
-                else:
-                    # Finished PB route, now explore carefully
-                    self.pb_recovery_mode = False
-                    # print(f"😤 Reached PB via route, now exploring carefully (anger: {anger_level:.1f})")
-            # else:
-            #     print(f"😤 AI frustrated (anger: {anger_level:.1f}) but no good route to follow")
+        # EXPERIMENT: COMMENTING OUT ANGRY AI LOGIC TO TEST EXPLORATION-ONLY BEHAVIOR
+        # =======================================================================
+        # # ANGRY/FRUSTRATED AI - Stick to what worked before, unless catastrophically stuck!
+        # if anger_level > 4:  # Moderately frustrated or worse
+        #     # DESPERATION / STUCK OVERRIDE for extreme anger
+        #     if self.stuck_timer > 5.0 and anger_level >= 9.0:  # Thresholds for being very stuck and very angry
+        #         print(f"😡 DESPERATION MODE: anger {anger_level:.1f}, stuck {self.stuck_timer:.1f}s")
+        #         self.pb_recovery_mode = False  # Ensure we are not in PB recovery mode
+        #         self.manual_pb_override = False  # Turn off manual override too, if it was active
+        #         self.recent_progress_feeling = max(-10, self.recent_progress_feeling + 2)  # Slightly reduce anger to allow trying something new
+        #         self.stuck_timer = 0.0  # Reset stuck timer as we are taking a new approach
+        #         # Aggressively explore, trying to break the pattern.
+        #         chosen_action = self.choose_exploration_action(position_key, exploration_boost=0.95)  # Very high exploration
+        #         self.last_action = chosen_action  # Record this desperation action
+        #         # print(f"😡 Desperation action: {chosen_action}")
+        #         return chosen_action
+        #     
+        #     # If not in desperation mode, proceed with normal angry logic
+        #     if len(self.pb_route) > 0 and far_from_pb:
+        #         if not self.pb_recovery_mode:
+        #             self.pb_recovery_mode = True
+        #             self.pb_route_index = 0
+        #             print(f"😤 FRUSTRATED - Starting PB recovery (anger: {anger_level:.1f})")
+        #         
+        #         recovery_action = self.try_pb_recovery()
+        #         if recovery_action:
+        #             # print(f"😤 FRUSTRATED: Following proven route - {recovery_action}")
+        #             return recovery_action
+        #         else:
+        #             # Finished PB route, now explore carefully
+        #             self.pb_recovery_mode = False
+        #             # print(f"😤 Reached PB via route, now exploring carefully (anger: {anger_level:.1f})")
+        #     # else:
+        #     #     print(f"😤 AI frustrated (anger: {anger_level:.1f}) but no good route to follow")
         
         # HAPPY/SUCCESSFUL AI - Explore new possibilities!
         elif happiness_level > 3 or at_pb_location:
@@ -956,20 +966,6 @@ class LearningAI:
                     direction_bonus = 0.1  # UP = decent
                 elif "left" in action:
                     direction_bonus = -0.1  # LEFT = slight penalty
-                
-                # TEMPORARILY COMMENTED OUT: Power-up and platform context bonuses for simplified learning
-                # # Power-up context bonus
-                # powerup_bonus = 0
-                # if self.player.has_powerup("jump_boost") and "jump" in action:
-                #     powerup_bonus = 0.2  # Prefer jumping when boosted
-                # 
-                # # Platform context bonus
-                # platform_bonus = 0
-                # platform_context = self.get_nearby_platform_context()
-                # if "bouncy" in platform_context and "jump" in action:
-                #     platform_bonus = 0.15  # Jumping is better near bouncy platforms
-                # elif "ice" in platform_context and action == "wait":
-                #     platform_bonus = 0.1  # Sometimes waiting on ice is smart
                 
                 # Simplified scoring for basic platform learning
                 powerup_bonus = 0  # No power-ups in simplified mode
@@ -1118,7 +1114,7 @@ class LearningAI:
         self.feel_emotion("success", 10)  # Maximum positive feeling!
         
         # Learn from ALL actions in this successful attempt
-        for pos, action in self.pb_route:
+        for pos, action, distance in self.pb_route:
             self.remember_success(pos, action)
             self.feel_emotion("success", 2, action)  # All actions in winning run feel good
         
@@ -1256,12 +1252,11 @@ class LearningAI:
         # Calculate average confidence across all known states
         total_confidence = 0
         confidence_count = 0
-        for position_key in self.action_attempts:
-            for action in self.action_attempts[position_key]:
-                confidence = self.get_action_confidence(position_key, action)
-                if confidence > 0:
-                    total_confidence += confidence
-                    confidence_count += 1
+        for (position_key, action) in self.action_attempts:
+            confidence = self.get_action_confidence(position_key, action)
+            if confidence > 0:
+                total_confidence += confidence
+                confidence_count += 1
         
         avg_confidence = total_confidence / max(1, confidence_count)
         
@@ -1405,15 +1400,16 @@ class DemoLevel:
             self.restart_attempt()
             print("🔄 Attempt restarted!")
             
-        elif keys_just_pressed.get(pygame.K_b, False):
-            # Manual override - force AI to go to Personal Best
-            if self.ai.personal_best_distance > 0:
-                self.ai.manual_pb_override = True
-                self.ai.pb_recovery_mode = True
-                self.ai.pb_route_index = 0
-                print(f"🎯 MANUAL OVERRIDE: Forcing AI to go to Personal Best ({self.ai.personal_best_distance:.0f})")
-            else:
-                print("❌ No Personal Best recorded yet!")
+        # EXPERIMENT: COMMENTING OUT B KEY - MANUAL PB OVERRIDE FOR TESTING
+        # elif keys_just_pressed.get(pygame.K_b, False):
+        #     # Manual override - force AI to go to Personal Best
+        #     if self.ai.personal_best_distance > 0:
+        #         self.ai.manual_pb_override = True
+        #         self.ai.pb_recovery_mode = True
+        #         self.ai.pb_route_index = 0
+        #         print(f"🎯 MANUAL OVERRIDE: Forcing AI to go to Personal Best ({self.ai.personal_best_distance:.0f})")
+        #     else:
+        #         print("❌ No Personal Best recorded yet!")
     
     def draw_learning_ui(self):
         """Draw the learning AI status and controls"""
@@ -1429,31 +1425,47 @@ class DemoLevel:
         status_surface = self.font_large.render(status_text, True, status_color)
         self.screen.blit(status_surface, (20, 20))
         
-        # NEW: Emotional mode indicator
-        anger_level = max(0, -self.ai.recent_progress_feeling)
-        happiness_level = max(0, self.ai.recent_progress_feeling)
+        # EXPERIMENT: COMMENTING OUT EMOTIONAL MODE INDICATOR FOR CLEANER UI
+        # ====================================================================
+        # # NEW: Emotional mode indicator
+        # anger_level = max(0, -self.ai.recent_progress_feeling)
+        # happiness_level = max(0, self.ai.recent_progress_feeling)
+        # current_x = self.ai.player.rect.centerx
+        # at_pb_location = current_x >= (self.ai.personal_best_distance - 100)
+        # 
+        # # Determine AI mode based on emotional state
+        # if self.ai.manual_pb_override:
+        #     mode_status = "🎯 MANUAL OVERRIDE: Following PB Route"
+        #     mode_color = YELLOW
+        # elif anger_level > 4:
+        #     mode_status = f"😤 FRUSTRATED: Following reliable PB route (anger: {anger_level:.1f})"
+        #     mode_color = (255, 100, 100)  # Light red
+        # elif happiness_level > 3 or at_pb_location:
+        #     if at_pb_location:
+        #         mode_status = f"🎉 AT PB: Maximum exploration for new paths!"
+        #         mode_color = (100, 255, 100)  # Bright green
+        #     else:
+        #         mode_status = f"😊 HAPPY: Confident exploration (happiness: {happiness_level:.1f})"
+        #         mode_color = (150, 255, 150)  # Light green
+        # else:
+        #     mode_status = f"😐 NEUTRAL: Balanced approach"
+        #     mode_color = WHITE
+        # 
+        # # Display the mode
+        # mode_surface = self.font_medium.render(mode_status, True, mode_color)
+        # self.screen.blit(mode_surface, (20, 50))
+        
+        # Simple AI mode indicator (no emotional state)
         current_x = self.ai.player.rect.centerx
         at_pb_location = current_x >= (self.ai.personal_best_distance - 100)
         
-        # Determine AI mode based on emotional state
-        if self.ai.manual_pb_override:
-            mode_status = "🎯 MANUAL OVERRIDE: Following PB Route"
-            mode_color = YELLOW
-        elif anger_level > 4:
-            mode_status = f"😤 FRUSTRATED: Following reliable PB route (anger: {anger_level:.1f})"
-            mode_color = (255, 100, 100)  # Light red
-        elif happiness_level > 3 or at_pb_location:
-            if at_pb_location:
-                mode_status = f"🎉 AT PB: Maximum exploration for new paths!"
-                mode_color = (100, 255, 100)  # Bright green
-            else:
-                mode_status = f"😊 HAPPY: Confident exploration (happiness: {happiness_level:.1f})"
-                mode_color = (150, 255, 150)  # Light green
+        if at_pb_location:
+            mode_status = "🎯 AT PERSONAL BEST: Exploring for new paths"
+            mode_color = GREEN
         else:
-            mode_status = f"😐 NEUTRAL: Balanced approach"
+            mode_status = "🤖 LEARNING MODE: Exploration + Experience"
             mode_color = WHITE
         
-        # Display the mode
         mode_surface = self.font_medium.render(mode_status, True, mode_color)
         self.screen.blit(mode_surface, (20, 50))
         
@@ -1508,37 +1520,12 @@ class DemoLevel:
             rendered = self.font_small.render(text, True, color)
             self.screen.blit(rendered, (right_x, right_y + i * 25))
         
-        # Emotional state display - more prominent
-        emotion_text = f"Feeling: {stats['emotional_score']:.1f}/10"
-        emotion_color = WHITE
-        emotional_score = stats['emotional_score']
-        
-        if emotional_score > 3:
-            emotion_color = GREEN
-            mood_emoji = "😄"
-        elif emotional_score > 0:
-            emotion_color = LIGHT_GRAY  
-            mood_emoji = "😊"
-        elif emotional_score > -3:
-            emotion_color = GRAY
-            mood_emoji = "😐"
-        elif emotional_score > -6:
-            emotion_color = ORANGE
-            mood_emoji = "😞"
-        else:
-            emotion_color = RED
-            mood_emoji = "😡"
-            
-        full_emotion_text = f"{mood_emoji} {emotion_text}"
-        emotion_surface = self.font_medium.render(full_emotion_text, True, emotion_color)
-        self.screen.blit(emotion_surface, (SCREEN_WIDTH // 2 + 20, y_offset + 130))
-        
-        # Learning progress bar
+        # Learning progress bar (simplified without emotional coloring)
         if stats['attempts'] > 0:
             progress_width = 300
             progress_height = 20
             progress_x = 20
-            progress_y = y_offset + 160
+            progress_y = y_offset + 130  # Moved up since no emotion display
             
             # Background
             pygame.draw.rect(self.screen, DARK_GRAY, (progress_x, progress_y, progress_width, progress_height))
@@ -1547,13 +1534,13 @@ class DemoLevel:
             success_rate = stats['success_rate']
             fill_width = int((success_rate / 100) * progress_width)
             
-            # Color based on emotional state
-            if emotional_score > 3:
+            # Simple color based on success rate (no emotion)
+            if success_rate > 75:
                 fill_color = GREEN
-            elif emotional_score > 0:
-                fill_color = LIGHT_GRAY
-            elif emotional_score > -3:
+            elif success_rate > 50:
                 fill_color = YELLOW
+            elif success_rate > 25:
+                fill_color = ORANGE
             else:
                 fill_color = RED
             
@@ -1563,16 +1550,10 @@ class DemoLevel:
             # Border
             pygame.draw.rect(self.screen, WHITE, (progress_x, progress_y, progress_width, progress_height), 2)
             
-            # Progress text with emotional context and PB info
+            # Simplified progress text without emotional context
             if stats['recovery_mode']:
                 progress_text = f"PB Recovery: Returning to {stats['personal_best']:.0f}"
                 progress_color = YELLOW
-            elif emotional_score > 3:
-                progress_text = f"Learning Progress: {stats['success_rate']:.1f}% (AI is happy!)"
-                progress_color = GREEN
-            elif emotional_score < -3:
-                progress_text = f"Learning Progress: {stats['success_rate']:.1f}% (AI is struggling)"
-                progress_color = RED
             else:
                 progress_text = f"Learning Progress: {stats['success_rate']:.1f}%"
                 progress_color = WHITE
@@ -1587,7 +1568,7 @@ class DemoLevel:
             "P: Pause/Resume Learning", 
             "E: Erase All Learning Data",
             "R: Restart Current Attempt",
-            "B: Force Go to Personal Best",
+            "🧪 EXPERIMENT: No Anger Mode",
             "ESC: Exit Demo"
         ]
         
