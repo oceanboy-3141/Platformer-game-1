@@ -3,6 +3,7 @@ import math
 import random
 import json
 import os
+import time
 from settings import *
 from player import Player
 from powerups import PowerUp
@@ -20,17 +21,42 @@ class LearningAI:
         self.success_memory = {}  # position -> {action: success_count}
         self.failure_memory = {}  # position -> {action: failure_count}
         
+        # NEW: Enhanced learning with confidence tracking
+        self.action_attempts = {}  # position -> {action: attempt_count}
+        self.state_visit_count = {}  # position -> total_visits
+        
         # Emotional memory system
         self.positive_reinforcement = {}  # action -> positive feeling score
         self.negative_reinforcement = {}  # action -> negative feeling score
         self.recent_progress_feeling = 0  # -10 (very bad) to +10 (very good)
         
         # Personal Best (PB) System
-        self.personal_best_distance = 0  # Furthest distance reached
-        self.pb_route = []  # List of actions that led to PB
-        self.pb_recovery_mode = False  # Are we trying to get back to PB?
-        self.pb_route_index = 0  # Where we are in replaying the PB route
-        self.manual_pb_override = False  # Manual override to force PB recovery
+        self.personal_best_distance = 0
+        self.pb_route = []  # List of (position, action, distance) tuples
+        self.pb_recovery_mode = False
+        self.pb_route_index = 0
+        
+        # Manual override system
+        self.manual_pb_override = False
+        
+        # Enhanced temporal learning - track recent actions for reward propagation
+        self.recent_actions = []  # List of (position, action, timestamp) for temporal learning
+        self.max_recent_actions = 5  # Number of recent actions to remember
+        
+        # Statistics and state tracking
+        self.attempts = 0
+        self.total_deaths = 0
+        self.victories = 0
+        self.last_distance = 0
+        self.last_action = None
+        self.last_position = None
+        self.stuck_timer = 0.0
+        
+        # UCB1 exploration parameters
+        self.ucb1_c = 1.4  # Exploration parameter (sqrt(2) is theoretical optimum)
+        
+        # Learning control
+        self.learning_active = True
         
         # Game knowledge and position tracking
         self.game_knowledge = {
@@ -54,22 +80,10 @@ class LearningAI:
             }
         }
         
-        # Statistics
-        self.attempts = 0
-        self.victories = 0
-        self.total_deaths = 0
-        self.learning_active = True
-        
-        # Decision tracking
-        self.last_position = None
-        self.last_action = None
-        self.stuck_timer = 0.0
-        self.last_distance = 0
-        
-        # Try to load existing learning data
+        # Load existing learning data
         self.load_learning_data()
         
-        # Print tutorial for the AI
+        # Print game tutorial for reference
         self.print_game_tutorial()
     
     def print_game_tutorial(self):
@@ -143,36 +157,201 @@ class LearningAI:
             print(f"🚀 AI feels AMAZING about moving RIGHT! (intensity: {intensity})")
     
     def get_position_key(self):
-        """Convert current position to a discrete key for memory storage"""
-        # Use smaller grid for more precise learning
-        grid_x = int(self.player.rect.centerx // 30)  # Smaller grid = more precision
+        """Enhanced position key with velocity and power-up context"""
+        # Grid position (30px resolution)
+        grid_x = int(self.player.rect.centerx // 30)
         grid_y = int(self.player.rect.centery // 30)
         
-        # Include more context for better learning
-        on_ground = self.player.on_ground
-        moving_right = self.player.vel_x > 0
+        # Velocity context (quantized for manageable state space)
+        vel_x_quantized = "still"
+        if self.player.vel_x > 1:
+            vel_x_quantized = "moving_right"
+        elif self.player.vel_x < -1:
+            vel_x_quantized = "moving_left"
         
-        return (grid_x, grid_y, on_ground, moving_right)
+        vel_y_quantized = "neutral"
+        if self.player.vel_y < -5:
+            vel_y_quantized = "rising"
+        elif self.player.vel_y > 5:
+            vel_y_quantized = "falling"
+        
+        # Ground state
+        ground_state = "on_ground" if self.player.on_ground else "in_air"
+        
+        # Power-up status
+        powerup_status = "none"
+        if self.player.has_powerup("jump_boost"):
+            powerup_status = "jump_boost"
+        
+        # Nearby platform context (simplified)
+        platform_context = self.get_nearby_platform_context()
+        
+        # Relative position to victory (simplified)
+        victory_distance = abs(self.player.rect.centerx - self.victory_zone.centerx) // 100
+        victory_distance = min(victory_distance, 50)  # Cap at 50 to limit state space
+        
+        return f"{grid_x}_{grid_y}_{ground_state}_{vel_x_quantized}_{vel_y_quantized}_{powerup_status}_{platform_context}_{victory_distance}"
+    
+    def get_nearby_platform_context(self):
+        """Get simplified context about nearby platforms"""
+        player_x = self.player.rect.centerx
+        player_y = self.player.rect.centery
+        
+        # Look for platforms within reasonable distance
+        nearby_types = []
+        
+        for platform in self.platforms:
+            distance_x = abs(platform.rect.centerx - player_x)
+            distance_y = abs(platform.rect.centery - player_y)
+            
+            # Only consider platforms that are close enough to matter
+            if distance_x < 200 and distance_y < 150:
+                # Determine platform type
+                platform_type = "normal"
+                if hasattr(platform, 'bounce_strength'):
+                    platform_type = "bouncy"
+                elif hasattr(platform, 'ice_friction'):
+                    platform_type = "ice"
+                elif hasattr(platform, 'one_way'):
+                    platform_type = "oneway"
+                elif hasattr(platform, 'get_movement_delta'):
+                    platform_type = "moving"
+                elif hasattr(platform, 'activate'):
+                    platform_type = "disappearing"
+                
+                # Determine relative position
+                if distance_x < 100:  # Very close
+                    if platform.rect.centery < player_y - 50:
+                        nearby_types.append(f"{platform_type}_above")
+                    elif platform.rect.centery > player_y + 50:
+                        nearby_types.append(f"{platform_type}_below")
+                    else:
+                        nearby_types.append(f"{platform_type}_level")
+        
+        # Return simplified context (limit to avoid state explosion)
+        if not nearby_types:
+            return "no_platforms"
+        elif len(nearby_types) == 1:
+            return nearby_types[0]
+        else:
+            # Multiple platforms - just return most significant
+            if any("bouncy" in p for p in nearby_types):
+                return "bouncy_nearby"
+            elif any("moving" in p for p in nearby_types):
+                return "moving_nearby"
+            elif any("ice" in p for p in nearby_types):
+                return "ice_nearby"
+            else:
+                return "multiple_platforms"
     
     def remember_success(self, position_key, action):
-        """Remember that this action worked at this position"""
-        pos_str = str(position_key)
-        if pos_str not in self.success_memory:
-            self.success_memory[pos_str] = {}
-        if action not in self.success_memory[pos_str]:
-            self.success_memory[pos_str][action] = 0
-        self.success_memory[pos_str][action] += 1
-        print(f"✅ Learned: {action} works at position {position_key}")
+        """Remember a successful action at a position with enhanced tracking"""
+        if position_key not in self.success_memory:
+            self.success_memory[position_key] = {}
+        if action not in self.success_memory[position_key]:
+            self.success_memory[position_key][action] = 0
+        
+        self.success_memory[position_key][action] += 1
+        
+        # Enhanced tracking for UCB1
+        self.track_action_attempt(position_key, action)
     
     def remember_failure(self, position_key, action):
-        """Remember that this action failed at this position"""
-        pos_str = str(position_key)
-        if pos_str not in self.failure_memory:
-            self.failure_memory[pos_str] = {}
-        if action not in self.failure_memory[pos_str]:
-            self.failure_memory[pos_str][action] = 0
-        self.failure_memory[pos_str][action] += 1
-        print(f"❌ Learned: {action} fails at position {position_key}")
+        """Remember a failed action at a position with enhanced tracking"""
+        if position_key not in self.failure_memory:
+            self.failure_memory[position_key] = {}
+        if action not in self.failure_memory[position_key]:
+            self.failure_memory[position_key][action] = 0
+        
+        self.failure_memory[position_key][action] += 1
+        
+        # Enhanced tracking for UCB1
+        self.track_action_attempt(position_key, action)
+    
+    def track_action_attempt(self, position_key, action):
+        """Track action attempts for confidence and UCB1 calculations"""
+        # Track total attempts for this action at this position
+        if position_key not in self.action_attempts:
+            self.action_attempts[position_key] = {}
+        if action not in self.action_attempts[position_key]:
+            self.action_attempts[position_key][action] = 0
+        
+        self.action_attempts[position_key][action] += 1
+        
+        # Track total visits to this state
+        if position_key not in self.state_visit_count:
+            self.state_visit_count[position_key] = 0
+        self.state_visit_count[position_key] += 1
+    
+    def get_action_confidence(self, position_key, action):
+        """Calculate confidence score for an action (0-1 range)"""
+        if position_key not in self.action_attempts:
+            return 0.0
+        
+        attempts = self.action_attempts[position_key].get(action, 0)
+        if attempts == 0:
+            return 0.0
+        
+        successes = self.success_memory.get(position_key, {}).get(action, 0)
+        failures = self.failure_memory.get(position_key, {}).get(action, 0)
+        
+        # Simple confidence: success rate weighted by attempts
+        success_rate = successes / max(1, successes + failures)
+        
+        # Higher confidence with more attempts (up to a point)
+        attempt_factor = min(1.0, attempts / 10.0)  # Asymptotic to 1.0
+        
+        return success_rate * attempt_factor
+    
+    def get_ucb1_score(self, position_key, action):
+        """Calculate UCB1 score for action selection"""
+        if position_key not in self.action_attempts:
+            return float('inf')  # Unknown actions get highest priority
+        
+        action_attempts = self.action_attempts[position_key].get(action, 0)
+        if action_attempts == 0:
+            return float('inf')  # Untried actions get highest priority
+        
+        total_visits = self.state_visit_count.get(position_key, 1)
+        successes = self.success_memory.get(position_key, {}).get(action, 0)
+        failures = self.failure_memory.get(position_key, {}).get(action, 0)
+        
+        # Calculate empirical success rate
+        success_rate = successes / max(1, successes + failures)
+        
+        # UCB1 exploration term
+        exploration_term = self.ucb1_c * math.sqrt(math.log(total_visits) / action_attempts)
+        
+        return success_rate + exploration_term
+    
+    def add_to_recent_actions(self, position_key, action):
+        """Add action to recent actions for temporal learning"""
+        import time
+        timestamp = time.time()
+        self.recent_actions.append((position_key, action, timestamp))
+        
+        # Keep only recent actions
+        if len(self.recent_actions) > self.max_recent_actions:
+            self.recent_actions.pop(0)
+    
+    def propagate_temporal_reward(self, reward_type, intensity):
+        """Propagate rewards back to recent actions (Temporal Difference Learning)"""
+        if not self.recent_actions:
+            return
+        
+        # Propagate reward back with diminishing strength
+        for i, (pos_key, action, timestamp) in enumerate(reversed(self.recent_actions)):
+            # More recent actions get more credit
+            temporal_discount = 0.8 ** i  # Discount factor
+            discounted_intensity = intensity * temporal_discount
+            
+            if discounted_intensity > 0.1:  # Only propagate significant rewards
+                if reward_type == "success":
+                    self.remember_success(pos_key, action)
+                    self.feel_emotion("success", discounted_intensity, action)
+                elif reward_type == "failure":
+                    self.remember_failure(pos_key, action)
+                    self.feel_emotion("failure", discounted_intensity, action)
     
     def get_learned_action(self, position_key):
         """Get the learned successful action for this position, if any"""
@@ -209,6 +388,11 @@ class LearningAI:
         # Make smart decision based on new logic
         chosen_action = self.make_smart_decision()
         
+        # Add current action to recent actions for temporal learning
+        if chosen_action != "wait":  # Don't track wait actions for temporal learning
+            current_position = self.get_position_key()
+            self.add_to_recent_actions(current_position, chosen_action)
+        
         # Create keys dictionary and apply the chosen action
         keys = {
             pygame.K_LEFT: False, 
@@ -239,6 +423,9 @@ class LearningAI:
                 # Double happiness for rightward progress!
                 happiness_intensity = min(5, progress_amount / 20)
                 self.feel_emotion("rightward_progress", happiness_intensity)
+                
+                # Use temporal learning to reward recent actions
+                self.propagate_temporal_reward("success", happiness_intensity * 0.5)
                 
                 # Remember the last action that led to this progress as EXTRA good
                 if self.last_action:
@@ -519,7 +706,7 @@ class LearningAI:
             return self.choose_exploration_action(position_key, exploration_boost=0.2)  # 20% exploration
     
     def choose_exploration_action(self, position_key, exploration_boost=0.2):
-        """Choose an action using logic and emotional learning with UP+RIGHT bias and exploration boost"""
+        """Enhanced action selection using UCB1 and confidence scoring"""
         possible_actions = ["move_right", "move_left", "jump_right", "jump_left", "jump_only", "wait"]
         
         # Filter out known failures
@@ -547,50 +734,59 @@ class LearningAI:
             
             return chosen_action
         
-        # LEARNED BEHAVIOR: Use emotional intelligence and knowledge
-        learned_actions = self.get_learned_action(position_key)
-        
-        if learned_actions:
-            # Use emotional scoring to pick the best learned action
-            def get_emotional_score(action):
-                positive_score = self.positive_reinforcement.get(action, 0)
-                negative_score = self.negative_reinforcement.get(action, 0)
-                learned_success_count = learned_actions.get(action, 0)
+        # INTELLIGENT EXPLOITATION: Use UCB1 for learned behavior
+        if position_key in self.success_memory or position_key in self.action_attempts:
+            # Calculate UCB1 scores for all safe actions
+            action_scores = []
+            
+            for action in safe_actions:
+                ucb1_score = self.get_ucb1_score(position_key, action)
+                confidence = self.get_action_confidence(position_key, action)
                 
-                # Base score from learning
-                base_score = learned_success_count * 10
-                
-                # Emotional modifiers
-                emotional_modifier = positive_score - negative_score
-                
-                # STRONG UP+RIGHT bias - extra points for good directions
+                # Add directional bias to UCB1 scores
                 direction_bonus = 0
                 if "right" in action and "jump" in action:
-                    direction_bonus = 50  # UP+RIGHT = best!
+                    direction_bonus = 0.3  # UP+RIGHT = best!
                 elif "right" in action:
-                    direction_bonus = 30  # RIGHT = good
+                    direction_bonus = 0.2  # RIGHT = good
                 elif "jump" in action:
-                    direction_bonus = 20  # UP = decent
+                    direction_bonus = 0.1  # UP = decent
                 elif "left" in action:
-                    direction_bonus = -20  # LEFT = bad direction
+                    direction_bonus = -0.1  # LEFT = slight penalty
                 
-                total_score = base_score + emotional_modifier + direction_bonus
-                return total_score
+                # Power-up context bonus
+                powerup_bonus = 0
+                if self.player.has_powerup("jump_boost") and "jump" in action:
+                    powerup_bonus = 0.2  # Prefer jumping when boosted
+                
+                # Platform context bonus
+                platform_bonus = 0
+                platform_context = self.get_nearby_platform_context()
+                if "bouncy" in platform_context and "jump" in action:
+                    platform_bonus = 0.15  # Jumping is better near bouncy platforms
+                elif "ice" in platform_context and action == "wait":
+                    platform_bonus = 0.1  # Sometimes waiting on ice is smart
+                
+                total_score = ucb1_score + direction_bonus + powerup_bonus + platform_bonus
+                action_scores.append((action, total_score, confidence, ucb1_score))
             
-            # Find the best action based on emotional learning
-            best_action = None
-            best_score = float('-inf')
+            # Sort by total score (highest first)
+            action_scores.sort(key=lambda x: x[1], reverse=True)
             
-            for action in learned_actions:
-                if action in safe_actions:  # Only consider safe actions
-                    score = get_emotional_score(action)
-                    if score > best_score:
-                        best_score = score
-                        best_action = action
-            
-            if best_action:
-                print(f"🧠 LEARNED BEHAVIOR: Using proven action: {best_action} (score: {best_score:.1f})")
-                return best_action
+            if action_scores:
+                best_action, best_score, confidence, raw_ucb1 = action_scores[0]
+                
+                # Decide between top options based on confidence
+                if len(action_scores) > 1 and confidence < 0.3:  # Low confidence
+                    # Consider top 2-3 actions when not confident
+                    top_actions = action_scores[:min(3, len(action_scores))]
+                    chosen_action = random.choice([a[0] for a in top_actions])
+                    print(f"🤔 LOW CONFIDENCE UCB1: Trying {chosen_action} (confidence: {confidence:.2f})")
+                else:
+                    chosen_action = best_action
+                    print(f"🧠 HIGH CONFIDENCE UCB1: Using {chosen_action} (confidence: {confidence:.2f}, UCB1: {raw_ucb1:.2f})")
+                
+                return chosen_action
         
         # FALLBACK: No learned behavior, prefer UP+RIGHT actions
         upright_actions = [a for a in safe_actions if "right" in a or "jump" in a]
@@ -630,7 +826,7 @@ class LearningAI:
         # "wait" does nothing - no keys pressed
     
     def on_death(self):
-        """Called when AI dies - strong negative emotional learning"""
+        """Called when AI dies - enhanced with temporal learning"""
         self.attempts += 1
         self.total_deaths += 1
         
@@ -638,15 +834,14 @@ class LearningAI:
         death_feeling_intensity = min(8, 3 + self.total_deaths)
         self.feel_emotion("failure", death_feeling_intensity)
         
+        # Use temporal learning to punish recent actions that led to death
+        self.propagate_temporal_reward("failure", death_feeling_intensity * 0.3)
+        
         # Check if we made progress (FIXED LOGIC)
         if self.last_distance > self.personal_best_distance:
             old_personal_best = self.personal_best_distance  # Save old value BEFORE updating
             self.personal_best_distance = self.last_distance  # Update to new best
             print(f"🚀 NEW RECORD! Reached distance: {self.last_distance}")
-            
-            # Feel GREAT about making progress! (Use old value for calculation)
-            progress_feeling = min(8, (self.last_distance - old_personal_best) / 100)
-            self.feel_emotion("success", progress_feeling)
             
             # When we make progress, reinforce more of the successful sequence
             success_count = min(5, len(self.pb_route) // 2)
@@ -656,31 +851,33 @@ class LearningAI:
                     pos, action, distance = self.pb_route[-(i+1)]  # Get from the end (most recent)
                     self.remember_success(pos, action)
                     self.feel_emotion("success", 1, action)  # Feel good about this action
+        else:
+            # Learn from failure - last few actions probably caused death
+            failure_count = min(3, len(self.pb_route))
+            for i in range(failure_count):
+                if len(self.pb_route) > i:
+                    # pb_route contains (position, action, distance) tuples
+                    pos, action, distance = self.pb_route[-(i+1)]  # Get from the end (most recent)
+                    self.remember_failure(pos, action)
+                    # Feel BAD about actions that led to death
+                    bad_feeling_intensity = 3 - i  # Earlier actions feel less bad
+                    self.feel_emotion("failure", bad_feeling_intensity, action)
         
-        # Learn from failure - last few actions probably caused death
-        failure_count = min(3, len(self.pb_route))
-        for i in range(failure_count):
-            if len(self.pb_route) > i:
-                # pb_route contains (position, action, distance) tuples
-                pos, action, distance = self.pb_route[-(i+1)]  # Get from the end (most recent)
-                self.remember_failure(pos, action)
-                # Feel BAD about actions that led to death
-                bad_feeling_intensity = 3 - i  # Earlier actions feel less bad
-                self.feel_emotion("failure", bad_feeling_intensity, action)
+        # Reset position for new attempt
+        self.player.rect.x = 200  # Start position
+        self.player.rect.y = WORLD_HEIGHT - 180 - PLAYER_HEIGHT - 5
+        self.player.vel_x = 0
+        self.player.vel_y = 0
+        self.player.on_ground = False
         
-        print(f"💀 Attempt #{self.attempts} ended. Distance: {self.last_distance}")
-        print(f"🧠 Knowledge: {len(self.success_memory)} successes, {len(self.failure_memory)} failures")
-        print(f"😊 Current mood: {self.recent_progress_feeling:.1f}/10")
+        # Clear recent actions on death
+        self.recent_actions = []
         
-        # Auto-save learning every 10 attempts
-        if self.attempts % 10 == 0:
-            self.save_learning_data()
-            print(f"💾 Auto-saved after {self.attempts} attempts")
+        # Update last distance for next attempt
+        self.last_distance = self.player.rect.centerx
         
-        # Reset for next attempt
-        self.last_distance = 0
-        self.pb_route = []
-        self.stuck_timer = 0.0
+        # Decay emotions slightly over time
+        self.recent_progress_feeling *= 0.95
     
     def on_victory(self):
         """Called when AI reaches victory - MASSIVE positive emotional boost!"""
@@ -704,71 +901,85 @@ class LearningAI:
         self.stuck_timer = 0.0
     
     def save_learning_data(self):
-        """Save learning data and PB information to file"""
+        """Save enhanced learning data to JSON file"""
         try:
             data = {
                 'success_memory': self.success_memory,
                 'failure_memory': self.failure_memory,
+                'action_attempts': self.action_attempts,  # NEW
+                'state_visit_count': self.state_visit_count,  # NEW
                 'positive_reinforcement': self.positive_reinforcement,
                 'negative_reinforcement': self.negative_reinforcement,
+                'recent_progress_feeling': self.recent_progress_feeling,
+                'personal_best_distance': self.personal_best_distance,
+                'pb_route': self.pb_route,
                 'attempts': self.attempts,
                 'victories': self.victories,
                 'total_deaths': self.total_deaths,
-                'personal_best_distance': self.personal_best_distance,
-                'pb_route': self.pb_route,  # Save the PB route!
-                'recent_progress_feeling': self.recent_progress_feeling
+                'ucb1_c': self.ucb1_c  # NEW
             }
             
             with open('ai_learning_data.json', 'w') as f:
                 json.dump(data, f, indent=2)
-            print(f"💾 Learning data saved! PB: {self.personal_best_distance:.0f}, Route steps: {len(self.pb_route)}")
+            print(f"💾 Enhanced learning data saved! ({len(self.success_memory)} states learned)")
+            
         except Exception as e:
             print(f"❌ Failed to save learning data: {e}")
     
     def load_learning_data(self):
-        """Load learning data and PB information from file"""
+        """Load enhanced learning data from JSON file"""
         try:
-            with open('ai_learning_data.json', 'r') as f:
-                data = json.load(f)
-            
-            self.success_memory = data.get('success_memory', {})
-            self.failure_memory = data.get('failure_memory', {})
-            self.positive_reinforcement = data.get('positive_reinforcement', {})
-            self.negative_reinforcement = data.get('negative_reinforcement', {})
-            self.attempts = data.get('attempts', 0)
-            self.victories = data.get('victories', 0)
-            self.total_deaths = data.get('total_deaths', 0)
-            self.personal_best_distance = data.get('personal_best_distance', 0)
-            self.pb_route = data.get('pb_route', [])  # Load the PB route!
-            self.recent_progress_feeling = data.get('recent_progress_feeling', 0)
-            
-            print(f"📖 Learning data loaded! PB: {self.personal_best_distance:.0f}, Route steps: {len(self.pb_route)}")
-        except FileNotFoundError:
-            print("📖 No previous learning data found - starting fresh")
+            if os.path.exists('ai_learning_data.json'):
+                with open('ai_learning_data.json', 'r') as f:
+                    data = json.load(f)
+                
+                self.success_memory = data.get('success_memory', {})
+                self.failure_memory = data.get('failure_memory', {})
+                self.action_attempts = data.get('action_attempts', {})  # NEW
+                self.state_visit_count = data.get('state_visit_count', {})  # NEW
+                self.positive_reinforcement = data.get('positive_reinforcement', {})
+                self.negative_reinforcement = data.get('negative_reinforcement', {})
+                self.recent_progress_feeling = data.get('recent_progress_feeling', 0)
+                self.personal_best_distance = data.get('personal_best_distance', 0)
+                self.pb_route = data.get('pb_route', [])
+                self.attempts = data.get('attempts', 0)
+                self.victories = data.get('victories', 0)
+                self.total_deaths = data.get('total_deaths', 0)
+                self.ucb1_c = data.get('ucb1_c', 1.4)  # NEW
+                
+                print(f"📖 Enhanced learning data loaded! {len(self.success_memory)} states, {self.attempts} attempts")
+                if self.personal_best_distance > 0:
+                    print(f"🏆 Personal Best: {self.personal_best_distance:.0f} with {len(self.pb_route)} route actions")
+            else:
+                print("📝 No existing learning data found - starting fresh!")
+                
         except Exception as e:
             print(f"❌ Failed to load learning data: {e}")
+            print("📝 Starting with fresh learning data")
     
     def erase_learning_data(self):
-        """Erase all learning data including PB information"""
-        self.success_memory.clear()
-        self.failure_memory.clear()
-        self.positive_reinforcement.clear()
-        self.negative_reinforcement.clear()
-        self.pb_route.clear()
-        self.personal_best_distance = 0
+        """Erase all enhanced learning data"""
+        self.success_memory = {}
+        self.failure_memory = {}
+        self.action_attempts = {}  # NEW
+        self.state_visit_count = {}  # NEW
+        self.positive_reinforcement = {}
+        self.negative_reinforcement = {}
         self.recent_progress_feeling = 0
+        self.personal_best_distance = 0
+        self.pb_route = []
         self.attempts = 0
         self.victories = 0
         self.total_deaths = 0
+        self.recent_actions = []  # NEW
         
         # Delete the save file
         try:
             if os.path.exists('ai_learning_data.json'):
                 os.remove('ai_learning_data.json')
-        except:
-            pass
-        
-        print("🧹 All learning data erased! PB reset to starting position.")
+            print("🗑️ All enhanced learning data erased!")
+        except Exception as e:
+            print(f"❌ Failed to delete save file: {e}")
     
     def toggle_learning(self):
         """Start/stop the learning process"""
@@ -778,37 +989,44 @@ class LearningAI:
         return self.learning_active
     
     def get_learning_stats(self):
-        """Get learning statistics including PB information"""
-        if self.attempts > 0:
-            success_rate = (self.victories / self.attempts) * 100
-        else:
-            success_rate = 0.0
-        
-        total_emotions = len(self.positive_reinforcement) + len(self.negative_reinforcement)
-        if total_emotions > 0:
-            positive_ratio = len(self.positive_reinforcement) / total_emotions
-        else:
-            positive_ratio = 0.5
-        
-        emotional_score = self.recent_progress_feeling
-        
-        # Calculate dynamic exploration rate
+        """Get enhanced learning statistics for UI display"""
+        success_rate = (self.victories / max(1, self.attempts)) * 100
         exploration_rate = self.get_dynamic_exploration_rate()
+        
+        # Calculate average confidence across all known states
+        total_confidence = 0
+        confidence_count = 0
+        for position_key in self.action_attempts:
+            for action in self.action_attempts[position_key]:
+                confidence = self.get_action_confidence(position_key, action)
+                if confidence > 0:
+                    total_confidence += confidence
+                    confidence_count += 1
+        
+        avg_confidence = total_confidence / max(1, confidence_count)
+        
+        # Calculate state space coverage
+        total_states_visited = len(self.state_visit_count)
+        well_explored_states = sum(1 for visits in self.state_visit_count.values() if visits >= 3)
         
         return {
             'attempts': self.attempts,
             'victories': self.victories,
-            'total_deaths': self.total_deaths,
             'success_rate': success_rate,
-            'personal_best': self.personal_best_distance,  # Include PB
-            'pb_route_length': len(self.pb_route),  # Include route info
-            'exploration_rate': exploration_rate,  # Now dynamic!
-            'emotional_score': emotional_score,
-            'recovery_mode': self.pb_recovery_mode,  # Include recovery status
+            'total_deaths': self.total_deaths,
+            'personal_best': self.personal_best_distance,
             'known_positions': len(self.success_memory),
-            'failed_actions': sum(len(failures) for failures in self.failure_memory.values()),
+            'exploration_rate': exploration_rate,
+            'emotional_score': self.recent_progress_feeling,
             'positive_associations': len(self.positive_reinforcement),
-            'negative_associations': len(self.negative_reinforcement)
+            'recovery_mode': self.pb_recovery_mode,
+            # NEW enhanced metrics
+            'avg_confidence': avg_confidence,
+            'total_states_visited': total_states_visited,
+            'well_explored_states': well_explored_states,
+            'state_coverage_ratio': well_explored_states / max(1, total_states_visited),
+            'recent_actions_count': len(self.recent_actions),
+            'ucb1_exploration_param': self.ucb1_c
         }
 
 class DemoLevel:
@@ -1013,19 +1231,19 @@ class DemoLevel:
         right_y = y_offset + 5
         current_texts = [
             f"Current Distance: {self.ai.last_distance:.0f}",
-            f"Known Positions: {stats['known_positions']}",
-            f"Exploration: {stats['exploration_rate']:.1f}%",
-            f"Positive Emotions: {stats['positive_associations']}",
-            f"Recovery Mode: {'ON' if stats['recovery_mode'] else 'OFF'}"  # NEW!
+            f"Avg Confidence: {stats['avg_confidence']:.2f}",
+            f"States Explored: {stats['total_states_visited']}",
+            f"UCB1 Param: {stats['ucb1_exploration_param']:.1f}",
+            f"Recent Actions: {stats['recent_actions_count']}"
         ]
         
         for i, text in enumerate(current_texts):
             color = WHITE
-            # Highlight recovery mode status
-            if "Recovery Mode: ON" in text:
-                color = YELLOW
-            elif "Recovery Mode: OFF" in text:
+            # Highlight high confidence
+            if "Avg Confidence" in text and stats['avg_confidence'] > 0.7:
                 color = GREEN
+            elif "Avg Confidence" in text and stats['avg_confidence'] < 0.3:
+                color = RED
             
             rendered = self.font_small.render(text, True, color)
             self.screen.blit(rendered, (right_x, right_y + i * 25))

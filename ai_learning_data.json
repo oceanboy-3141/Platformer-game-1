@@ -1,12 +1,78 @@
 {
   "success_memory": {},
-  "failure_memory": {},
+  "failure_memory": {
+    "14_200_in_air_moving_right_falling_none_no_platforms_50": {
+      "jump_right": 1
+    },
+    "14_199_in_air_moving_left_falling_none_no_platforms_50": {
+      "move_right": 1,
+      "jump_left": 1
+    },
+    "14_198_in_air_moving_right_falling_none_no_platforms_50": {
+      "jump_left": 1,
+      "move_right": 1,
+      "jump_right": 1
+    },
+    "14_197_in_air_moving_right_falling_none_no_platforms_50": {
+      "jump_right": 1
+    },
+    "13_196_in_air_moving_right_falling_none_no_platforms_50": {
+      "jump_only": 1
+    },
+    "14_200_in_air_moving_left_falling_none_no_platforms_50": {
+      "jump_left": 1
+    },
+    "14_199_in_air_moving_right_falling_none_no_platforms_50": {
+      "jump_left": 1
+    }
+  },
+  "action_attempts": {
+    "14_200_in_air_moving_right_falling_none_no_platforms_50": {
+      "jump_right": 1
+    },
+    "14_199_in_air_moving_left_falling_none_no_platforms_50": {
+      "move_right": 1,
+      "jump_left": 1
+    },
+    "14_198_in_air_moving_right_falling_none_no_platforms_50": {
+      "jump_left": 1,
+      "move_right": 1,
+      "jump_right": 1
+    },
+    "14_197_in_air_moving_right_falling_none_no_platforms_50": {
+      "jump_right": 1
+    },
+    "13_196_in_air_moving_right_falling_none_no_platforms_50": {
+      "jump_only": 1
+    },
+    "14_200_in_air_moving_left_falling_none_no_platforms_50": {
+      "jump_left": 1
+    },
+    "14_199_in_air_moving_right_falling_none_no_platforms_50": {
+      "jump_left": 1
+    }
+  },
+  "state_visit_count": {
+    "14_200_in_air_moving_right_falling_none_no_platforms_50": 1,
+    "14_199_in_air_moving_left_falling_none_no_platforms_50": 2,
+    "14_198_in_air_moving_right_falling_none_no_platforms_50": 3,
+    "14_197_in_air_moving_right_falling_none_no_platforms_50": 1,
+    "13_196_in_air_moving_right_falling_none_no_platforms_50": 1,
+    "14_200_in_air_moving_left_falling_none_no_platforms_50": 1,
+    "14_199_in_air_moving_right_falling_none_no_platforms_50": 1
+  },
   "positive_reinforcement": {},
-  "negative_reinforcement": {},
-  "attempts": 1780,
-  "victories": 0,
-  "total_deaths": 10,
-  "personal_best_distance": 1005,
+  "negative_reinforcement": {
+    "jump_right": 2.4288,
+    "move_right": 1.7280000000000002,
+    "jump_left": 6.642,
+    "jump_only": 0.49152000000000007
+  },
+  "recent_progress_feeling": -10,
+  "personal_best_distance": 483,
   "pb_route": [],
-  "recent_progress_feeling": -10
+  "attempts": 1700,
+  "victories": 0,
+  "total_deaths": 2,
+  "ucb1_c": 1.4
 }
