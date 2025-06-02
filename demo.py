@@ -734,55 +734,69 @@ class LearningAI:
         return self.player.rect.centerx >= (self.personal_best_distance - 50)
     
     def get_dynamic_exploration_rate(self):
-        """Calculate exploration rate that starts high and decreases as AI learns"""
-        # Start with high exploration (80%) and gradually decrease
-        base_exploration = 80  # Start at 80% exploration
+        """Calculate dynamic exploration rate based on progress and distance from PB"""
+        base_rate = 15  # Reduced base rate (was 20) to make learned behavior more prominent
         
-        # Reduce exploration based on knowledge gained
-        knowledge_factor = len(self.success_memory) * 2  # Each success reduces exploration
-        attempt_factor = self.attempts * 0.5  # Each attempt reduces exploration slightly
+        # Distance-based exploration - get MORE exploratory as we approach PB
+        current_distance = self.player.rect.centerx
+        distance_from_pb = abs(current_distance - self.personal_best_distance)
         
-        # Calculate current exploration rate
-        current_exploration = max(15, base_exploration - knowledge_factor - attempt_factor)
+        # Adjusted for smaller 2x world - much smaller distance thresholds
+        if distance_from_pb < 25:  # Very close to PB (was 50)
+            distance_bonus = 60  # Very jittery near PB
+        elif distance_from_pb < 75:  # Near PB (was 150)
+            distance_bonus = 40  # Moderately jittery approaching PB
+        elif distance_from_pb < 150:  # Somewhat close to PB (was 300)
+            distance_bonus = 20  # Some exploration
+        else:  # Far from PB
+            distance_bonus = 5   # Minimal exploration - focus on learning efficient path
         
-        # If AI is struggling (low success rate), increase exploration temporarily
-        if self.attempts > 5:
-            success_rate = (self.victories / self.attempts) * 100
-            if success_rate < 10:  # If very low success rate, boost exploration
-                current_exploration = min(60, current_exploration + 20)
+        # Time-based reduction - but much less aggressive
+        time_factor = max(0.8, 1.0 - (self.attempts * 0.02))  # Very slow reduction
         
-        return current_exploration
+        final_rate = min(85, (base_rate + distance_bonus) * time_factor)  # Cap at 85%
+        return final_rate
     
     def is_making_good_progress(self):
-        """Check if AI is making good vertical AND horizontal progress toward victory"""
-        victory_x = self.victory_zone.centerx
-        victory_y = self.victory_zone.centery
-        
+        """Check if AI is making good progress toward the goal"""
         current_x = self.player.rect.centerx
         current_y = self.player.rect.centery
         
-        # Calculate progress toward victory (both horizontal and vertical)
-        horizontal_progress = (current_x - 200) / (victory_x - 200)  # 0 to 1
-        vertical_progress = (WORLD_HEIGHT - current_y) / (WORLD_HEIGHT - victory_y)  # 0 to 1
+        # For smaller 2x world, adjusted progress thresholds
+        # Good progress = moving right AND up in reasonable amounts
+        progress_threshold = 100  # Much smaller threshold for 2x world (was likely much larger)
+        height_progress_threshold = 50  # Moving up is important
         
-        # Good progress means making decent progress in BOTH dimensions
-        return horizontal_progress > 0.1 and vertical_progress > 0.1
+        # Check if we've moved significantly right from starting position (200)
+        horizontal_progress = current_x > (200 + progress_threshold)
+        
+        # Check if we've gained height (smaller world, so smaller height gains count)
+        # Starting Y is around WORLD_HEIGHT - 180, so going up means smaller Y values
+        starting_y = WORLD_HEIGHT - 180
+        height_progress = current_y < (starting_y - height_progress_threshold)
+        
+        return horizontal_progress and height_progress
     
     def get_position_progress_score(self):
-        """Get a score (0-100) for how close current position is to victory"""
-        victory_x = self.victory_zone.centerx
-        victory_y = self.victory_zone.centery
-        
+        """Get a score (0-100) representing how close we are to victory"""
         current_x = self.player.rect.centerx
         current_y = self.player.rect.centery
         
-        # Calculate progress in both dimensions
-        horizontal_progress = max(0, min(1, (current_x - 200) / (victory_x - 200)))
-        vertical_progress = max(0, min(1, (WORLD_HEIGHT - current_y) / (WORLD_HEIGHT - victory_y)))
+        # For 2x world: victory zone is at (1750, WORLD_HEIGHT - 900)
+        victory_x = 1750  # Approximate center of victory zone
+        victory_y = WORLD_HEIGHT - 900
         
-        # Combined progress score (both dimensions are important!)
-        combined_progress = (horizontal_progress + vertical_progress) / 2
-        return combined_progress * 100
+        starting_x = 200  # Starting position
+        starting_y = WORLD_HEIGHT - 180
+        
+        # Calculate progress (0 to 1) for both dimensions
+        horizontal_progress = max(0, min(1, (current_x - starting_x) / (victory_x - starting_x)))
+        vertical_progress = max(0, min(1, (starting_y - current_y) / (starting_y - victory_y)))
+        
+        # Combined score (slightly favor horizontal progress as it's the main direction)
+        combined_score = (horizontal_progress * 0.6 + vertical_progress * 0.4) * 100
+        
+        return int(combined_score)
     
     def make_smart_decision(self):
         """Make AI decision based on learning and emotions with enhanced logging"""
@@ -883,16 +897,15 @@ class LearningAI:
             
             # At PB location or feeling happy = maximum exploration!
             if at_pb_location:
-                # print(f"🎉 AI at/near PB location - MAXIMUM EXPLORATION to find new paths!")
-                return self.choose_exploration_action(position_key, exploration_boost=0.8)  # 80% exploration
+                # MAXIMUM JITTERY EXPLORATION at PB - this creates the jittery behavior
+                print(f"🎯 AT PB: MAXIMUM UP+RIGHT EXPLORATION!")
+                return self.choose_exploration_action(position_key, exploration_boost=0.95)  # 95% exploration (was 80%)
             else:
-                # print(f"😊 AI feeling happy (happiness: {happiness_level:.1f}) - exploring confidently!")
-                return self.choose_exploration_action(position_key, exploration_boost=0.4)  # 40% exploration
+                # Happy but not at PB = confident exploration
+                return self.choose_exploration_action(position_key, exploration_boost=0.7)  # 70% exploration (was 40%)
         
         # NORMAL AI - Balanced approach when not strongly emotional
         else:
-            # print(f"😐 AI in neutral state - balanced exploration and learning")
-            
             # Boost exploration if AI is being inefficient
             inefficiency_boost = 0.0
             if self.inefficient_action_streak > 5:
@@ -900,22 +913,19 @@ class LearningAI:
                 if inefficiency_boost > 0.1:
                     print(f"🔄 Boosting exploration due to inefficiency (streak: {self.inefficient_action_streak})")
             
-            # Get available safe actions for logging
-            safe_actions = ["move_right", "jump_only", "up_right", "wait"]
-            # print(f"   Available safe actions: {safe_actions}")
+            # Get dynamic exploration rate based on distance from PB
+            exploration_rate = self.get_dynamic_exploration_rate()
             
-            # Try learned behavior first
+            # Try learned behavior first, but skip it if exploration rate is very high
             learned_action = self.get_learned_action(position_key)
-            if learned_action and inefficiency_boost < 0.2:  # Skip learned if very inefficient
-                # print(f"📚 Using learned action: {learned_action}")
+            if learned_action and inefficiency_boost < 0.2 and exploration_rate < 50:  # Only use learned when exploration is low
+                print(f"📚 Using learned action: {learned_action}")
                 return learned_action
             
-            # Otherwise explore with balanced approach + inefficiency boost
-            exploration_rate = self.get_dynamic_exploration_rate()
-            total_boost = exploration_rate + inefficiency_boost
-            # print(f"🎲 No learned action - exploring with rate {exploration_rate:.1%}")
+            # Otherwise explore with dynamic rate + inefficiency boost
+            total_boost = (exploration_rate / 100) + inefficiency_boost
+            print(f"🎲 EXPLORING: Dynamic rate {exploration_rate:.0f}% (distance-based)")
             chosen_action = self.choose_exploration_action(position_key, exploration_boost=total_boost)
-            # print(f"🎯 Chosen action: {chosen_action}")
             return chosen_action
     
     def choose_exploration_action(self, position_key, exploration_boost=0.2):
@@ -934,16 +944,31 @@ class LearningAI:
         total_exploration_chance = min(0.9, (exploration_rate / 100) + exploration_boost)
         
         if random.random() < total_exploration_chance:
-            # EXPLORATION: Try random actions, heavily biased toward UP+RIGHT
+            # EXPLORATION: Prioritize UP movement first (survival), then UP+RIGHT
+            jump_actions = [a for a in safe_actions if "jump" in a]
             upright_actions = [a for a in safe_actions if "right" in a or "jump" in a]
             
-            if upright_actions and random.random() < 0.7:  # 70% chance for UP+RIGHT bias
+            if jump_actions and random.random() < 0.85:  # 85% chance to prioritize ANY jumping
+                # Further bias toward JUMP+RIGHT within jumping actions
+                jump_right_actions = [a for a in jump_actions if "right" in a]
+                if jump_right_actions and random.random() < 0.7:  # 70% chance for JUMP+RIGHT within jumps
+                    chosen_action = random.choice(jump_right_actions)
+                    print(f"🎲 EXPLORING: UP+RIGHT priority: {chosen_action}")
+                else:
+                    chosen_action = random.choice(jump_actions)
+                    print(f"🎲 EXPLORING: UP priority (safety): {chosen_action}")
+            elif upright_actions and random.random() < 0.95:  # 95% chance for remaining UP+RIGHT actions
                 chosen_action = random.choice(upright_actions)
-                print(f"🎲 EXPLORING (boost: {exploration_boost:.1f}): Trying UP+RIGHT action: {chosen_action}")
+                print(f"🎲 EXPLORING: UP/RIGHT action: {chosen_action}")
             else:
-                # Sometimes try other actions for variety
-                chosen_action = random.choice(safe_actions)
-                print(f"🎲 EXPLORING (boost: {exploration_boost:.1f}): Trying action: {chosen_action}")
+                # Only 5% chance for other actions (and avoid LEFT when possible)
+                non_left_actions = [a for a in safe_actions if "left" not in a]
+                if non_left_actions:
+                    chosen_action = random.choice(non_left_actions)
+                    print(f"🎲 EXPLORING: Non-left fallback: {chosen_action}")
+                else:
+                    chosen_action = random.choice(safe_actions)
+                    print(f"🎲 EXPLORING: Last resort: {chosen_action}")
             
             return chosen_action
         
@@ -956,16 +981,18 @@ class LearningAI:
                 ucb1_score = self.get_ucb1_score(position_key, action)
                 confidence = self.get_action_confidence(position_key, action)
                 
-                # Add directional bias to UCB1 scores
+                # Add directional bias to UCB1 scores - UP is MORE important than RIGHT!
                 direction_bonus = 0
                 if "right" in action and "jump" in action:
-                    direction_bonus = 0.3  # UP+RIGHT = best!
-                elif "right" in action:
-                    direction_bonus = 0.2  # RIGHT = good
+                    direction_bonus = 1.2  # UP+RIGHT = MASSIVE bonus! (increased from 1.0)
                 elif "jump" in action:
-                    direction_bonus = 0.1  # UP = decent
+                    direction_bonus = 1.0  # UP = HUGE bonus! (increased from 0.4) - UP is critical!
+                elif "right" in action:
+                    direction_bonus = 0.3  # RIGHT = moderate bonus (decreased from 0.6) - less important than UP
                 elif "left" in action:
-                    direction_bonus = -0.1  # LEFT = slight penalty
+                    direction_bonus = -0.8  # LEFT = major penalty
+                elif action == "wait":
+                    direction_bonus = -0.5  # WAIT = bigger penalty to encourage movement (increased from -0.3)
                 
                 # Simplified scoring for basic platform learning
                 powerup_bonus = 0  # No power-ups in simplified mode
@@ -992,14 +1019,31 @@ class LearningAI:
                 
                 return chosen_action
         
-        # FALLBACK: No learned behavior, prefer UP+RIGHT actions
+        # FALLBACK: Prioritize UP movement for survival, then UP+RIGHT
+        jump_actions = [a for a in safe_actions if "jump" in a]
         upright_actions = [a for a in safe_actions if "right" in a or "jump" in a]
-        if upright_actions:
+        
+        if jump_actions:
+            # First priority: any jumping action for survival
+            jump_right_actions = [a for a in jump_actions if "right" in a]
+            if jump_right_actions and random.random() < 0.7:  # 70% prefer jump+right within jumps
+                chosen_action = random.choice(jump_right_actions)
+                print(f"⬆️➡️ FALLBACK: UP+RIGHT priority: {chosen_action}")
+            else:
+                chosen_action = random.choice(jump_actions)
+                print(f"⬆️ FALLBACK: UP priority (safety): {chosen_action}")
+        elif upright_actions:
             chosen_action = random.choice(upright_actions)
-            print(f"⬆️➡️ FALLBACK: Choosing UP+RIGHT action: {chosen_action}")
+            print(f"⬆️➡️ FALLBACK: UP/RIGHT action: {chosen_action}")
         else:
-            chosen_action = random.choice(safe_actions)
-            print(f"🤷 FALLBACK: Random safe action: {chosen_action}")
+            # Avoid LEFT if possible, prefer jumping over waiting
+            non_left_actions = [a for a in safe_actions if "left" not in a]
+            if non_left_actions:
+                chosen_action = random.choice(non_left_actions)
+                print(f"🤷 FALLBACK: Non-left action: {chosen_action}")
+            else:
+                chosen_action = random.choice(safe_actions)
+                print(f"🤷 FALLBACK: Last resort: {chosen_action}")
         
         return chosen_action
     

@@ -5,9 +5,9 @@ SCREEN_WIDTH = 1024
 SCREEN_HEIGHT = 768
 FPS = 60
 
-# World dimensions (8 times larger than screen)
-WORLD_WIDTH = SCREEN_WIDTH * 8  # 8192 pixels
-WORLD_HEIGHT = SCREEN_HEIGHT * 8  # 6144 pixels
+# World dimensions (2 times larger than screen for easier AI learning)
+WORLD_WIDTH = SCREEN_WIDTH * 2  # 2048 pixels (was 8192)
+WORLD_HEIGHT = SCREEN_HEIGHT * 2  # 1536 pixels (was 6144)
 
 # Camera settings
 CAMERA_SMOOTHING = 0.3  # More responsive camera (was 0.1)
