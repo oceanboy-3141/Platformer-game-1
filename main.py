@@ -135,28 +135,30 @@ class Game:
         self.platforms.add(ground)
         self.all_sprites.add(ground)
         
-        # Create a much shorter, more achievable level for AI learning (2x world instead of 8x)
-        # SIMPLIFIED: Only basic platforms in a shorter progression
+        # Create an EVEN SIMPLER level for AI learning - much closer platforms!
+        # ULTRA-SIMPLIFIED: Very close platforms forming an obvious staircase pattern
         platforms_data = [
-            # Starting area
-            (150, WORLD_HEIGHT - 180, 200, 25),   # First safe platform
+            # Starting area - safe landing
+            (100, WORLD_HEIGHT - 180, 300, 25),   # Large starting platform
             
-            # Simple upward progression - much shorter gaps and distances
-            (400, WORLD_HEIGHT - 260, 150, 25),   # Easy jump up
-            (650, WORLD_HEIGHT - 340, 150, 25),   # Continue up
-            (900, WORLD_HEIGHT - 420, 150, 25),   # Keep going
-            (1150, WORLD_HEIGHT - 500, 150, 25),  # Getting higher
+            # Simple staircase with VERY small gaps - obvious path up and right
+            (250, WORLD_HEIGHT - 240, 200, 25),   # Step 1: Small jump up
+            (400, WORLD_HEIGHT - 300, 200, 25),   # Step 2: Continue up-right  
+            (550, WORLD_HEIGHT - 360, 200, 25),   # Step 3: Keep going
+            (700, WORLD_HEIGHT - 420, 200, 25),   # Step 4: Almost there
+            (850, WORLD_HEIGHT - 480, 200, 25),   # Step 5: Near the top
+            (1000, WORLD_HEIGHT - 540, 200, 25),  # Step 6: Getting close
+            (1150, WORLD_HEIGHT - 600, 200, 25),  # Step 7: Almost victory
+            (1300, WORLD_HEIGHT - 660, 300, 30),  # VICTORY PLATFORM - extra big!
             
-            # Alternative path (for learning multiple routes)
-            (300, WORLD_HEIGHT - 320, 120, 25),   # Alternative route
-            (520, WORLD_HEIGHT - 400, 120, 25),   # Alt path continues
-            (750, WORLD_HEIGHT - 480, 120, 25),   # Alt path higher
-            
-            # Convergence and final stretch
-            (1000, WORLD_HEIGHT - 580, 180, 25),  # Meeting point
-            (1300, WORLD_HEIGHT - 660, 150, 25),  # Almost there
-            (1550, WORLD_HEIGHT - 740, 150, 25),  # Near the end
-            (1800, WORLD_HEIGHT - 820, 200, 30),  # Victory platform (bigger and higher!)
+            # Alternative slightly easier path (for learning)
+            (200, WORLD_HEIGHT - 220, 150, 25),   # Alternative step 1
+            (350, WORLD_HEIGHT - 280, 150, 25),   # Alternative step 2
+            (500, WORLD_HEIGHT - 340, 150, 25),   # Alternative step 3
+            (650, WORLD_HEIGHT - 400, 150, 25),   # Alternative step 4
+            (800, WORLD_HEIGHT - 460, 150, 25),   # Alternative step 5
+            (950, WORLD_HEIGHT - 520, 150, 25),   # Alternative step 6
+            (1100, WORLD_HEIGHT - 580, 150, 25),  # Alternative step 7
         ]
         
         # Create all platforms as basic Platform objects
@@ -165,17 +167,12 @@ class Game:
             self.platforms.add(platform)
             self.all_sprites.add(platform)
         
-        # Create victory zone at top-right (much more achievable now!)
-        self.victory_zone = pygame.Rect(1750, WORLD_HEIGHT - 900, 300, 100)
+        # Create victory zone at a much more achievable location
+        self.victory_zone = pygame.Rect(1200, WORLD_HEIGHT - 720, 400, 100)
         
-        # =======================================
-        # SPECIAL PLATFORMS - TEMPORARILY COMMENTED OUT FOR BASIC AI LEARNING
-        # Uncomment these sections when AI masters basic movement
-        # =======================================
-        
-        print("🎯 Created simplified 2x world level for AI learning!")
+        print("🎯 Created ULTRA-simplified staircase level for AI learning!")
         print(f"🏆 Victory zone at: {self.victory_zone.x}, {self.victory_zone.y}")
-        print("💡 Special platforms are commented out - uncomment them when AI masters basics!")
+        print("💡 Clear staircase pattern - just jump up and right repeatedly!")
     
     def handle_input(self):
         """Handle input based on current game state"""

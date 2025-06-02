@@ -136,7 +136,9 @@ class LearningAI:
     def feel_emotion(self, emotion_type, intensity, action=None):
         """AI experiences emotions about actions and outcomes"""
         if emotion_type == "success":
-            self.recent_progress_feeling = min(10, self.recent_progress_feeling + intensity)
+            # Special case: Victory can exceed normal emotional caps (up to 15)
+            max_feeling = 15 if intensity > 10 else 10  # Allow victory to go to 15
+            self.recent_progress_feeling = min(max_feeling, self.recent_progress_feeling + intensity)
             if action:
                 current_positive = self.positive_reinforcement.get(action, 0)
                 # BOOST positive feelings for rightward actions!
@@ -735,26 +737,26 @@ class LearningAI:
     
     def get_dynamic_exploration_rate(self):
         """Calculate dynamic exploration rate based on progress and distance from PB"""
-        base_rate = 15  # Reduced base rate (was 20) to make learned behavior more prominent
+        base_rate = 10  # Even lower base rate for more consistent learned behavior
         
         # Distance-based exploration - get MORE exploratory as we approach PB
         current_distance = self.player.rect.centerx
         distance_from_pb = abs(current_distance - self.personal_best_distance)
         
-        # Adjusted for smaller 2x world - much smaller distance thresholds
-        if distance_from_pb < 25:  # Very close to PB (was 50)
-            distance_bonus = 60  # Very jittery near PB
-        elif distance_from_pb < 75:  # Near PB (was 150)
-            distance_bonus = 40  # Moderately jittery approaching PB
-        elif distance_from_pb < 150:  # Somewhat close to PB (was 300)
-            distance_bonus = 20  # Some exploration
+        # Adjusted for ultra-simple level - even smaller distance thresholds
+        if distance_from_pb < 15:  # Very close to PB (was 25)
+            distance_bonus = 50  # Very jittery near PB
+        elif distance_from_pb < 40:  # Near PB (was 75)
+            distance_bonus = 30  # Moderately jittery approaching PB
+        elif distance_from_pb < 80:  # Somewhat close to PB (was 150)
+            distance_bonus = 15  # Some exploration
         else:  # Far from PB
             distance_bonus = 5   # Minimal exploration - focus on learning efficient path
         
         # Time-based reduction - but much less aggressive
-        time_factor = max(0.8, 1.0 - (self.attempts * 0.02))  # Very slow reduction
+        time_factor = max(0.8, 1.0 - (self.attempts * 0.01))  # Even slower reduction
         
-        final_rate = min(85, (base_rate + distance_bonus) * time_factor)  # Cap at 85%
+        final_rate = min(75, (base_rate + distance_bonus) * time_factor)  # Lower cap at 75%
         return final_rate
     
     def is_making_good_progress(self):
@@ -762,13 +764,13 @@ class LearningAI:
         current_x = self.player.rect.centerx
         current_y = self.player.rect.centery
         
-        # For smaller 2x world, adjusted progress thresholds
-        # Good progress = moving right AND up in reasonable amounts
-        progress_threshold = 100  # Much smaller threshold for 2x world (was likely much larger)
-        height_progress_threshold = 50  # Moving up is important
+        # For ultra-simplified level, much smaller progress thresholds
+        # Good progress = moving right AND up in smaller amounts
+        progress_threshold = 50  # Even smaller threshold for ultra-simple level
+        height_progress_threshold = 30  # Moving up is important but smaller steps
         
-        # Check if we've moved significantly right from starting position (200)
-        horizontal_progress = current_x > (200 + progress_threshold)
+        # Check if we've moved significantly right from starting position (100)
+        horizontal_progress = current_x > (100 + progress_threshold)
         
         # Check if we've gained height (smaller world, so smaller height gains count)
         # Starting Y is around WORLD_HEIGHT - 180, so going up means smaller Y values
@@ -782,11 +784,11 @@ class LearningAI:
         current_x = self.player.rect.centerx
         current_y = self.player.rect.centery
         
-        # For 2x world: victory zone is at (1750, WORLD_HEIGHT - 900)
-        victory_x = 1750  # Approximate center of victory zone
-        victory_y = WORLD_HEIGHT - 900
+        # For ultra-simplified level: victory zone is at (1200, WORLD_HEIGHT - 720)
+        victory_x = 1200  # Much closer victory zone
+        victory_y = WORLD_HEIGHT - 720
         
-        starting_x = 200  # Starting position
+        starting_x = 100  # New starting position
         starting_y = WORLD_HEIGHT - 180
         
         # Calculate progress (0 to 1) for both dimensions
@@ -1154,8 +1156,8 @@ class LearningAI:
         
         print(f"🏆 VICTORY #{self.victories}! Attempt #{self.attempts}")
         
-        # Feel AMAZING about winning!
-        self.feel_emotion("success", 10)  # Maximum positive feeling!
+        # Feel AMAZING about winning! VICTORY IS THE ULTIMATE HIGH!
+        self.feel_emotion("success", 15)  # SUPER-maximum positive feeling! (higher than normal 10 cap)
         
         # Learn from ALL actions in this successful attempt
         for pos, action, distance in self.pb_route:
